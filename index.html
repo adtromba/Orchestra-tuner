@@ -119,6 +119,9 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
 .bar { position: relative; height: 56px; }
 .bar .track { position: absolute; left: 0; right: 0; top: 24px; height: 8px; border-radius: 4px; background: var(--line); }
 .bar .zone { position: absolute; top: 24px; height: 8px; left: 45%; width: 10%; background: var(--good); opacity: .45; }
+.bar .tick.minor { top: 19px; height: 18px; opacity: .3; }
+.bar .tick { margin-left: -1px; }
+.target { color: var(--muted); }
 .bar .tick { position: absolute; top: 14px; width: 2px; height: 28px; background: var(--muted); opacity: .5; }
 .bar .needle { position: absolute; top: 4px; width: 6px; height: 48px; margin-left: -3px; border-radius: 3px; background: var(--ink); left: 50%; transition: left .09s linear, opacity .2s; opacity: .25; }
 .state-good .needle { background: var(--good); }
@@ -258,7 +261,7 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
     <div class="cap" id="tcap">Play a note</div>
     <div class="note">
       <div class="big" id="noteBig">&ndash;</div>
-      <div class="side"><div id="concert">&nbsp;</div><div id="tHz">&nbsp;</div></div>
+      <div class="side"><div id="concert">&nbsp;</div><div id="tHz">&nbsp;</div><div id="tTarget" class="target">&nbsp;</div></div>
     </div>
     <div>
       <div class="cents" id="cents">&nbsp;</div>
@@ -267,13 +270,15 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
     <div>
       <div class="bar" id="bar">
         <div class="track"></div>
-        <div class="zone"></div>
-        <div class="tick" style="left:0"></div>
-        <div class="tick" style="left:50%;margin-left:-1px;opacity:.9"></div>
-        <div class="tick" style="right:0"></div>
+        <div class="zone" id="zone"></div>
+        <div id="ticks"></div>
         <div class="needle" id="needle"></div>
       </div>
-      <div class="scale"><span>&minus;50&cent; flat</span><span>sharp +50&cent;</span></div>
+      <div class="scale"><span id="scaleL"></span><span id="scaleR"></span></div>
+    </div>
+    <div class="seg" id="rangeSeg" role="group" aria-label="Meter range">
+      <button data-v="wide" aria-pressed="true">Wide &plusmn;50&cent;</button>
+      <button data-v="fine" aria-pressed="false">Fine &plusmn;15&cent;</button>
     </div>
   </div>
 
@@ -585,7 +590,8 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
   var tctx, tAnalyser, tStream, tBuf, tRaf = 0, tWake = null;
   var W = 2048;           // comparison window in samples
   var yd = new Float32Array(W);
-  var lastGood = 0, tHist = [], listening = false;
+  var lastGood = 0, tHist = [], listening = false, smooth = null, tRange = 'wide';
+  var RANGE = { wide: 50, fine: 15 };
 
   function yin(x, sr) {
     var rms = 0, i, tau;
@@ -624,7 +630,7 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
   var lastRun = 0;
   function tLoop(ts) {
     tRaf = requestAnimationFrame(tLoop);
-    if (ts - lastRun < 40) return;
+    if (ts - lastRun < 30) return;
     lastRun = ts;
     tAnalyser.getFloatTimeDomainData(tBuf);
     var f = yin(tBuf, tctx.sampleRate);
@@ -632,9 +638,14 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
       tHist.push(f);
       if (tHist.length > 5) tHist.shift();
       lastGood = ts;
-      tShow(median(tHist));
+      // smooth in the pitch domain; snap straight to a new note when the pitch jumps
+      var l = 1200 * Math.log(median(tHist) / s.a4) / Math.LN2;
+      if (smooth === null || Math.abs(l - smooth) > 50) smooth = l;
+      else smooth += 0.35 * (l - smooth);
+      tShow(s.a4 * Math.pow(2, smooth / 1200));
     } else if (ts - lastGood > 700) {
       tHist = [];
+      smooth = null;
       tIdle();
     }
   }
@@ -644,11 +655,12 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
     var nearest = Math.round(n);
     var cents = (n - nearest) * 100;
     var shift = instById[s.inst].shift;
-    var rc = Math.round(cents);
+    var rc = Math.round(cents * 10) / 10;
     $('noteBig').textContent = NAMES[pc(nearest + shift)];
     $('concert').textContent = shift !== 0 ? 'sounds ' + NAMES[pc(nearest)] : ' ';
     $('tHz').textContent = f.toFixed(1) + ' Hz';
-    $('cents').textContent = rc === 0 ? '0¢' : (rc > 0 ? '+' : MINUS) + Math.abs(rc) + '¢';
+    $('tTarget').textContent = 'target ' + (s.a4 * Math.pow(2, (nearest - 69) / 12)).toFixed(1);
+    $('cents').textContent = (rc > 0 ? '+' : rc < 0 ? MINUS : '') + Math.abs(rc).toFixed(1) + '¢';
     var state = Math.abs(cents) <= 5 ? 'good' : 'warn';
     $('verdict').textContent = state === 'good' ? 'In tune' : (cents > 0 ? 'Sharp' : 'Flat');
     $('tcap').textContent = 'Listening';
@@ -656,7 +668,7 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
     m.classList.add('live');
     m.classList.toggle('state-good', state === 'good');
     m.classList.toggle('state-warn', state === 'warn');
-    var pos = 50 + Math.max(-50, Math.min(50, cents));
+    var pos = 50 + Math.max(-50, Math.min(50, cents / RANGE[tRange] * 50));
     $('needle').style.left = pos + '%';
   }
 
@@ -667,6 +679,7 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
     $('noteBig').textContent = '–';
     $('concert').innerHTML = '&nbsp;';
     $('tHz').innerHTML = '&nbsp;';
+    $('tTarget').innerHTML = '&nbsp;';
     $('cents').innerHTML = '&nbsp;';
     $('verdict').innerHTML = '&nbsp;';
     $('tcap').textContent = listening ? 'Play a note' : 'Not listening';
@@ -696,7 +709,7 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
       src.connect(tAnalyser);
       tctx.resume();
       listening = true;
-      tHist = []; lastGood = 0;
+      tHist = []; lastGood = 0; smooth = null;
       $('go').setAttribute('aria-pressed', 'true');
       $('go').textContent = 'Stop listening';
       tSay(s.playing ? 'The drone is playing and the microphone may pick it up. Use headphones or stop the drone.' : 'Play one note at a time. Cents are measured against the nearest note at your chosen A.');
@@ -730,6 +743,26 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
       navigator.wakeLock.request('screen').then(function (l) { tWake = l; }).catch(function () {});
     }
   });
+
+  function drawScale() {
+    var r = RANGE[tRange], step = r === 50 ? 10 : 5, html = '', v;
+    for (v = -r; v <= r; v += step) {
+      var major = v === 0 || Math.abs(v) === r;
+      html += '<div class="tick' + (major ? '' : ' minor') + '" style="left:' + (50 + v / r * 50) + '%' + (v === 0 ? ';opacity:.9' : '') + '"></div>';
+    }
+    $('ticks').innerHTML = html;
+    var z = $('zone');
+    z.style.left = (50 - 5 / r * 50) + '%';
+    z.style.width = (10 / r * 50) + '%';
+    $('scaleL').textContent = MINUS + r + '\u00A2 flat';
+    $('scaleR').textContent = 'sharp +' + r + '\u00A2';
+    mark('rangeSeg', tRange);
+  }
+  $('rangeSeg').addEventListener('click', function (e) {
+    var b = e.target.closest('button');
+    if (b) { tRange = b.dataset.v; drawScale(); }
+  });
+  drawScale();
 
   function showTab() {
     $('panel-drone').hidden = s.tab !== 'drone';
