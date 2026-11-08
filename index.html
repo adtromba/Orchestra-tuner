@@ -489,13 +489,6 @@ main { padding-bottom: 120px; }
         <button data-v="down" aria-pressed="false">Down</button>
       </div>
     </div>
-    <div class="row" id="tHumRow" hidden>
-      <div class="label">Steady tone while in tune</div>
-      <div class="seg" id="humSeg" role="group" aria-label="Steady tone while in tune">
-        <button data-v="on" aria-pressed="true">On</button>
-        <button data-v="off" aria-pressed="false">Off</button>
-      </div>
-    </div>
     <div class="row" id="tDegRow">
       <div class="label">The note I am playing</div>
       <div class="degrees" id="tDegs" role="group" aria-label="Scale note"></div>
@@ -586,7 +579,7 @@ main { padding-bottom: 120px; }
   </section>
   </div>
 
-  <p class="hint" id="buildTag" style="text-align:center;opacity:.6">Version: Nov 8n, Climb: clear on/off (green banner, steady tone, drift-out blip)</p>
+  <p class="hint" id="buildTag" style="text-align:center;opacity:.6">Version: Nov 8o, Climb: check-mark sound in, falling sound out</p>
   <p class="msg" id="msg">Tap Start, allow the microphone, then play one note at a time. The reading is in cents: 100 cents is one half step.</p>
 
   </div>
@@ -1298,13 +1291,13 @@ main { padding-bottom: 120px; }
     });
   }
   // A short high ping the moment you land inside the window, and a two-note chime when the note is done
-  function ping(notes, amp) {
+  function ping(notes, amp, gap, type) {
     if (!ctx) return;
     var t0 = ctx.currentTime + 0.01;
     notes.forEach(function (fr, k) {
-      var o = ctx.createOscillator(), g = ctx.createGain(), t = t0 + k * 0.11;
-      o.type = 'sine'; o.frequency.value = fr;
-      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(Math.max(0.2, s.vol) * 0.5 * (amp || 1), t + 0.005); g.gain.exponentialRampToValueAtTime(0.001, t + 0.16);
+      var o = ctx.createOscillator(), g = ctx.createGain(), t = t0 + k * (gap || 0.11);
+      o.type = type || 'sine'; o.frequency.value = fr;
+      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(Math.max(0.3, s.vol) * 0.6 * (amp || 1), t + 0.004); g.gain.exponentialRampToValueAtTime(0.001, t + 0.14);
       o.connect(g); g.connect(ctx.destination); o.start(t); o.stop(t + 0.2);
     });
   }
@@ -1314,22 +1307,6 @@ main { padding-bottom: 120px; }
     el.className = good ? 'good' : '';
   }
   // On / off: bright green IN TUNE banner, a steady soft tone while you are in the zone, a falling blip when you leave it
-  var climbHum = true, humV = null;
-  function humOn() {
-    if (!climbHum || humV || !ctx) return;
-    var o = ctx.createOscillator(), g = ctx.createGain(), t = ctx.currentTime;
-    o.type = 'sine'; o.frequency.value = 1760;
-    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(Math.max(0.15, s.vol) * 0.12, t + 0.02);
-    o.connect(g); g.connect(ctx.destination); o.start(t);
-    humV = { o: o, g: g };
-  }
-  function humOff() {
-    if (!humV) return;
-    var t = ctx.currentTime, h = humV;
-    humV = null;
-    h.g.gain.cancelScheduledValues(t); h.g.gain.setTargetAtTime(0, t, 0.012);
-    try { h.o.stop(t + 0.1); } catch (e) {}
-  }
   function zoneUI() {
     var show = tMode === 'climb' && listening && !cin.on && !!guideStep();
     $('zoneBar').hidden = !show;
@@ -1340,8 +1317,8 @@ main { padding-bottom: 120px; }
   function zone(on, quiet) {
     if (climb.locked === on) return;
     climb.locked = on;
-    if (on) { ping([2093]); humOn(); }
-    else { humOff(); if (!quiet) ping([740, 523], 0.6); }
+    if (on) ping([1175, 1760], 1, 0.085);                      // rising two-note check mark: tik-TOK
+    else if (!quiet) ping([880, 587], 1, 0.085, 'triangle');   // falling two notes: tok-tik
     zoneUI();
   }
   function climbFeed(f, ts) {
@@ -1355,7 +1332,7 @@ main { padding-bottom: 120px; }
       setHold(climb.hold / CLIMB_HOLD, true);
       if (climb.hold >= CLIMB_HOLD) {
         climb.hold = 0; climb.last = 0; zone(false, true);
-        ping([1568, 2349]);
+        ping([1319, 1760, 2349], 1, 0.09);
         guide.i++;
         renderGuide();
         climbTone(guideStep());
@@ -1613,7 +1590,6 @@ main { padding-bottom: 120px; }
     if (tMode !== 'scale') hearStop();
     $('guideCard').hidden = !guided();
     $('tDirRow').hidden = !guided();
-    $('tHumRow').hidden = tMode !== 'climb';
     if (tMode !== 'climb') zone(false, true);
     if (tMode !== 'climb') climbOff();
     if (!guided()) cinStop();
@@ -1785,10 +1761,6 @@ main { padding-bottom: 120px; }
     renderGuide();
   }
 
-  $('humSeg').addEventListener('click', function (e) {
-    var b = e.target.closest('button');
-    if (b) { climbHum = b.dataset.v === 'on'; mark('humSeg', b.dataset.v); if (!climbHum) humOff(); else if (climb.locked) humOn(); }
-  });
   $('go').addEventListener('click', function () { if (listening) tStop(); else tStart(); });
   document.addEventListener('visibilitychange', function () {
     if (document.visibilityState === 'visible' && listening && navigator.wakeLock && !tWake) {
