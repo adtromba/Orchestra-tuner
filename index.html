@@ -449,7 +449,7 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
     <div class="label">Scale report</div>
     <div id="scaleRows"></div>
     <p class="hint" id="scaleSum"></p>
-    <p class="hint" id="hearMsg">Tap Hear it on a note to hear your pitch, then the pure note. Stop listening first.</p>
+    <p class="hint" id="hearMsg">Tap Hear it on a note. A steady pure note plays the whole time (about 16 s). Over it you hear your pitch (wobble), then the pure note (smooth), twice. Stop listening first.</p>
     <p class="hint">Hollow dot: where you landed. Solid dot: where you settled. The line shows your pitch over time, the green band is within 5&cent;, and the dashed line marks when you locked in. Tap a row to retake that note.</p>
     <button class="clear" id="scaleClear">Start over</button>
   </section>
@@ -1410,21 +1410,22 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
     while (target < 200) target *= 2;
     var mine = target * Math.pow(2, settled / 1200);
     audioReady().then(function () {
-      var t0 = ctx.currentTime + 0.1, seq = [mine, target, mine, target];
+      var t0 = ctx.currentTime + 0.1, seq = [mine, target, mine, target], SEG = 4;
       var sharp = settled >= 0 ? 'sharp' : 'flat', amt = Math.abs(settled).toFixed(0);
-      seq.forEach(function (f, i) { toneOnce(f, t0 + i * 1.5, 1.2); });
+      toneOnce(target, t0, seq.length * SEG);          // steady pure reference the whole time
+      seq.forEach(function (f, i) { toneOnce(f, t0 + i * SEG, SEG); });
       seq.forEach(function (f, i) {
         hearTimers.push(setTimeout(function () {
           $('hearMsg').textContent = i % 2 === 0
-            ? 'Your note: ' + (Math.abs(settled) < 1 ? 'right on pitch' : amt + '¢ ' + sharp)
-            : 'The pure note';
-        }, 100 + i * 1500));
+            ? 'Your note against the pure note' + (Math.abs(settled) < 1 ? ': you were right on pitch, so it is smooth' : ' (' + amt + '\u00A2 ' + sharp + '): listen for the wobble')
+            : 'Pure note against the pure note: smooth, no wobble';
+        }, 100 + i * SEG * 1000));
       });
       hearTimers.push(setTimeout(function () {
         hearNodes = []; hearTimers = [];
-        $('hearMsg').textContent = 'That was your note, then the pure note. Tap Hear it to repeat.';
+        $('hearMsg').textContent = 'Done. Your note had the wobble, the pure note did not. Tap Hear it to repeat.';
         hearing = -1; renderScaleRep(); audioDone();
-      }, 100 + seq.length * 1500));
+      }, 100 + seq.length * SEG * 1000));
     });
     hearing = deg;
     $('hearMsg').textContent = 'Playing…';
