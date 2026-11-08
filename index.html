@@ -547,7 +547,7 @@ svg .off { opacity: .3; }
     <button class="clear" id="tendClear">Clear saved results</button>
   </section>
 
-  <p class="hint" id="buildTag" style="text-align:center;opacity:.6">Version: Nov 8g, Scale recording keeps going to the next note</p>
+  <p class="hint" id="buildTag" style="text-align:center;opacity:.6">Version: Nov 8h, 2 s minimum, steadier pitch, short notes flagged</p>
   <p class="msg" id="msg">Tap Start, allow the microphone, then play one note at a time. The reading is in cents: 100 cents is one half step.</p>
 
   </div>
@@ -1076,11 +1076,11 @@ svg .off { opacity: .3; }
   }
 
   // ---------- modes: notes, target, scale, my notes ----------
-  var tMode = 'notes', tDeg = 0, seg = null, scaleRep = {}, repKey = '', tend = {}, tendInst = '';
+  var tMode = 'notes', tDeg = 0, seg = null, scaleRep = {}, dropped = {}, repKey = '', tend = {}, tendInst = '';
   var HINTS = {
     notes:  'Shows the nearest note and how many cents sharp or flat you are against piano pitch.',
     target: 'Pick the note you are playing. The meter shows how far you are from its pure (just) pitch over the key.',
-    scale:  'Play one note at a time and hold each for at least 3 seconds in total. Breaths and restarts are fine. It moves on when you play the next note.',
+    scale:  'Play one note at a time and hold each for at least 2 seconds in total. Breaths and restarts are fine. It moves on when you play the next note.',
     beats:  'Ear training. Tune one note against a steady one. The wobble slows as you get closer and disappears when it is in tune.',
     mine:   'Play a chromatic scale slowly. The chart saves which notes you tend to play sharp or flat on this instrument.'
   };
@@ -1148,12 +1148,15 @@ svg .off { opacity: .3; }
         last = a[n - 1];
         latest.push({ i: i, t: last });
       }
-      html += repRow(spell(s.note, s.scale === 'minor', shift, d[0], i), DEG[i] + (n ? ' ±' + Math.round(sdA) : ''), setA, n, i, (!!st && st.deg === i) || (hearing === 100 && hearDeg === i), landA, last);
+      html += repRow(spell(s.note, s.scale === 'minor', shift, d[0], i), DEG[i] + (n ? ' ±' + Math.round(sdA) : (dropped[i] !== undefined ? ' · too short' : '')), setA, n, i, (!!st && st.deg === i) || (hearing === 100 && hearDeg === i), landA, last);
     });
     $('scaleRows').innerHTML = html;
     $('hearAll').textContent = hearing === 100 ? 'Stop the scale' : 'Hear the whole scale with the root';
     $('hearAll').setAttribute('aria-pressed', hearing === 100 ? 'true' : 'false');
-    if (latest.length >= 2) {
+    var lost = Object.keys(dropped).filter(function (k) { return !(scaleRep[k] || []).length; }).map(function (k) { return DEG[k] + ' (' + dropped[k].toFixed(1) + ' s)'; });
+    if (lost.length) {
+      $('scaleSum').textContent = 'Not saved, under ' + (MIN_VOICED / 1000) + ' s: ' + lost.join(', ') + '. Tap the note to retake it.';
+    } else if (latest.length >= 2) {
       var locked = latest.filter(function (x) { return x.t.lock !== null; });
       var never = latest.filter(function (x) { return x.t.lock === null; });
       var txt = 'Locked in on ' + locked.length + ' of ' + latest.length + ' notes';
@@ -1193,9 +1196,9 @@ svg .off { opacity: .3; }
 
   // ---------- guided scale: one continuous recording per note ----------
   // A note's recording starts at its first sound, keeps going through breaths and restarts (gaps stay blank),
-  // and is saved if at least 3 seconds were actually played. It moves on only when you play the next note.
+  // and is saved if at least 2 seconds were actually played. It moves on only when you play the next note.
   var guide = { steps: [], i: 0, rec: null, nextCand: [], hear: null }, dirUp = true, capTimer = 0;
-  var MIN_VOICED = 3000, SWITCH_FRAMES = 8, LOCK_FRAMES = 9, LOCK_TOL = 5, END_SILENCE = 3000;
+  var MIN_VOICED = 2000, SWITCH_FRAMES = 8, LOCK_FRAMES = 9, LOCK_TOL = 5, END_SILENCE = 1500;
 
   function std(a) { var m = mean(a), t = 0; a.forEach(function (v) { t += (v - m) * (v - m); }); return Math.sqrt(t / a.length); }
   function stepLabel(st) { return st.oct ? 'Octave' : DEG[st.deg]; }
@@ -1244,7 +1247,7 @@ svg .off { opacity: .3; }
     var ms = guide.rec ? voicedMs(guide.rec.f) : 0, line = n > 1 ? 'Step ' + (guide.i + 1) + ' of ' + n : 'Retake';
     if (listening) {
       line += ' · ' + (ms / 1000).toFixed(1) + ' s played';
-      line += ms >= MIN_VOICED ? ' ✓ ' + (guide.steps[guide.i + 1] ? 'saves when you play the next note' : 'saves after a pause or when you stop') : ' (saves at 3 s)';
+      line += ms >= MIN_VOICED ? ' ✓ ' + (guide.steps[guide.i + 1] ? 'saves when you play the next note' : 'saves after a pause or when you stop') : ' (saves at ' + (MIN_VOICED / 1000) + ' s)';
     }
     if (listening && guide.hear) line += ' · hearing the ' + guide.hear + ', waiting for the ' + stepLabel(st);
     $('guideStep').textContent = line;
@@ -1271,12 +1274,13 @@ svg .off { opacity: .3; }
       var dv = dd(pcC, justCents(degs[guide.steps[k].deg]));
       if (Math.abs(dv) < Math.abs(bestDev)) { bestDev = dv; bestJ = k; }
     }
-    if (bestJ >= 0 && Math.abs(bestDev) <= 70 && Math.abs(bestDev) < Math.abs(devCur)) {
+    var far = bestJ > guide.i + 1;
+    if (bestJ >= 0 && Math.abs(bestDev) <= (far ? 40 : 70) && Math.abs(bestDev) + (far ? 30 : 0) < Math.abs(devCur)) {
       // closer to a later note: it takes about a quarter of a second of steady playing to count as moving on
       var c = guide.nextCand;
       if (c.length && (c[c.length - 1].j !== bestJ || Math.abs(a - c[c.length - 1].a) > 35)) c = guide.nextCand = [];
       c.push({ ts: ts, a: a, j: bestJ });
-      if (c.length >= SWITCH_FRAMES) advance(c, bestJ);
+      if (c.length >= (far ? 14 : SWITCH_FRAMES)) advance(c, bestJ);
       return;
     }
     guide.nextCand = [];
@@ -1324,7 +1328,10 @@ svg .off { opacity: .3; }
     if (!rec || !st) return false;
     var fr = rec.f, n = fr.length, nm = stepName(st), i, j;
     if (voicedMs(fr) < MIN_VOICED) {
-      if (n >= 3) setCap(nm + ': under 3 seconds, not saved', 'warn');
+      if (n >= 3) {
+        dropped[st.deg] = voicedMs(fr) / 1000;
+        setCap(nm + ': only ' + (voicedMs(fr) / 1000).toFixed(1) + ' s, needs ' + (MIN_VOICED / 1000) + ' s. Not saved. Tap it to retake.', 'warn');
+      }
       return false;
     }
     var devs = fr.map(function (x) { return devOf(x.a, st); });
@@ -1349,6 +1356,7 @@ svg .off { opacity: .3; }
     buckets = buckets.map(function (a) { return a.length ? median(a) : null; });
     var restarts = 0;
     for (i = 1; i < n; i++) { if (fr[i].ts - fr[i - 1].ts > 400) restarts++; }
+    delete dropped[st.deg];
     (scaleRep[st.deg] = scaleRep[st.deg] || []).push({
       land: land, settled: settled, sd: best, lock: lock, lockAt: lockAt,
       played: voicedMs(fr) / 1000, restarts: restarts, buckets: buckets
@@ -1388,7 +1396,7 @@ svg .off { opacity: .3; }
     var shift = instById[s.inst].shift;
     var key = s.note + ':' + s.scale;
     var changed = key !== repKey;
-    if (changed) { repKey = key; scaleRep = {}; }
+    if (changed) { repKey = key; scaleRep = {}; dropped = {}; }
     if (tendInst !== s.inst) { tendInst = s.inst; loadTend(); }
     Array.prototype.forEach.call($('tDegs').children, function (b, i) {
       var d = scaleDegs()[i];
@@ -1436,7 +1444,7 @@ svg .off { opacity: .3; }
       if (tHist.length > 5) tHist.shift();
       lastGood = ts;
       if (tMode === 'mine') segFeed(f);
-      else if (tMode === 'scale') guideFeed(f, ts);
+      else if (tMode === 'scale') guideFeed(tHist.length >= 3 ? median(tHist) : f, ts);
       // smooth in the pitch domain; snap straight to a new note when the pitch jumps
       var l = 1200 * Math.log(median(tHist) / s.a4) / Math.LN2;
       if (smooth === null || Math.abs(l - smooth) > 50) smooth = l;
@@ -1621,7 +1629,7 @@ svg .off { opacity: .3; }
     var b = e.target.closest('button');
     if (b) { tMode = b.dataset.v; tModeUI(); }
   });
-  $('scaleClear').addEventListener('click', function () { scaleRep = {}; guideStart(); setCap(''); });
+  $('scaleClear').addEventListener('click', function () { scaleRep = {}; dropped = {}; guideStart(); setCap(''); });
   $('dirSeg').addEventListener('click', function (e) {
     var b = e.target.closest('button');
     if (b) { dirUp = b.dataset.v === 'up'; mark('dirSeg', b.dataset.v); guideStart(); }
