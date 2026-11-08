@@ -182,6 +182,44 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
 .phones { margin: 0; font-size: 14px; color: var(--warn); font-weight: 600; }
 .pure { margin: 0; text-align: center; font-size: 14px; color: var(--muted); min-height: 20px; }
 @media (prefers-reduced-motion: reduce) { .bar .needle { transition: none; } }
+
+/* Rhythm tab: metronome and polyrhythm layers */
+:root { --l0:#0f6b5c; --l1:#c2410c; --l2:#6d28d9; --l3:#0369a1; --l4:#a16207; --l5:#be185d; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --l0:#4fc2a9; --l1:#fb923c; --l2:#a78bfa; --l3:#38bdf8; --l4:#facc15; --l5:#f472b6; } }
+:root[data-theme="dark"] { --l0:#4fc2a9; --l1:#fb923c; --l2:#a78bfa; --l3:#38bdf8; --l4:#facc15; --l5:#f472b6; }
+.l0 { color: var(--l0); } .l1 { color: var(--l1); } .l2 { color: var(--l2); } .l3 { color: var(--l3); } .l4 { color: var(--l4); } .l5 { color: var(--l5); }
+.sw { display: inline-block; width: 14px; height: 14px; border-radius: 50%; background: currentColor; flex: none; }
+.sw.sm { width: 10px; height: 10px; margin-right: 4px; }
+#rhBpm { font-size: 44px; line-height: 1; }
+.rviz svg { width: 100%; height: auto; display: block; }
+.rviz.circle svg { max-width: 340px; margin: 0 auto; }
+.rtxt { font: 11px var(--font-display); fill: var(--muted); }
+.rlab { font: 600 17px var(--font-display); fill: currentColor; }
+.rdot { fill: currentColor; }
+.rdot.sil { fill: var(--surface); stroke: currentColor; stroke-width: 1.5; }
+.rdot.hit { stroke: var(--ink); stroke-width: 3; }
+.rhit { fill: transparent; cursor: pointer; }
+.rbeat { stroke: var(--line); stroke-width: 1; }
+.rbase { stroke: var(--line); stroke-width: 1; fill: none; }
+.rtick { stroke: var(--muted); stroke-width: 1; }
+.rmeet { stroke: var(--ink); opacity: .3; }
+.rhead { stroke: var(--ink); stroke-width: 2; opacity: .75; }
+.rpoly { fill: none; stroke: currentColor; stroke-width: 1.5; opacity: .45; }
+.rctr { font: 500 18px var(--font-display); fill: var(--muted); text-anchor: middle; }
+svg .off { opacity: .3; }
+.why { font-size: 14px; display: flex; flex-direction: column; gap: 4px; }
+.lays { display: flex; flex-direction: column; gap: 10px; }
+.lay { border: 1px solid var(--line); border-radius: 12px; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+.lay.dim { opacity: .55; }
+.lay-top { display: flex; align-items: center; gap: 10px; }
+.lay-top .stepper { flex: none; width: 150px; gap: 6px; }
+.lay-top .stepper button { width: 44px; }
+.lay-n { font-size: 15px; flex: none; }
+.lay-name { font-size: 13px; color: var(--muted); flex: 1; min-width: 0; }
+.lay-bot { display: flex; gap: 6px; align-items: center; }
+.lay-bot select { flex: 1; min-width: 0; min-height: 44px; }
+.mini { min-height: 44px; min-width: 44px; padding: 0 10px; border: 1px solid var(--line); border-radius: 10px; background: transparent; color: var(--ink); font: 500 14px var(--font-body); cursor: pointer; }
+.mini[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--bg); }
 </style>
 </head>
 <body>
@@ -191,9 +229,10 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
   <div class="seg tabs" id="tabSeg" role="group" aria-label="Mode">
     <button data-v="drone" aria-pressed="true">Drone</button>
     <button data-v="tuner" aria-pressed="false">Tuner</button>
+    <button data-v="rhythm" aria-pressed="false">Rhythm</button>
   </div>
 
-  <section class="card">
+  <section class="card" id="sharedCard">
     <div class="row">
       <label class="label" for="inst">My instrument</label>
       <select id="inst"></select>
@@ -461,9 +500,110 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
     <button class="clear" id="tendClear">Clear saved results</button>
   </section>
 
-  <p class="hint" id="buildTag" style="text-align:center;opacity:.6">Version: Nov 8b, louder notes over soft low root</p>
+  <p class="hint" id="buildTag" style="text-align:center;opacity:.6">Version: Nov 8c, new Rhythm tab (metronome and polyrhythms)</p>
   <p class="msg" id="msg">Tap Start, allow the microphone, then play one note at a time. The reading is in cents: 100 cents is one half step.</p>
 
+  </div>
+
+  <div class="panel" id="panel-rhythm" hidden>
+  <section class="card">
+    <div class="row">
+      <div class="cap">Tempo</div>
+      <div class="stepper">
+        <button id="rhMinus" aria-label="Slower">&minus;</button>
+        <span id="rhBpm">80</span>
+        <button id="rhPlus" aria-label="Faster">+</button>
+      </div>
+      <input type="range" id="rhSlide" min="20" max="300" step="1" value="80" aria-label="Tempo">
+      <p class="hint" id="rhUnit"></p>
+    </div>
+    <div class="actions">
+      <button class="play" id="rhPlay" aria-pressed="false">Start</button>
+      <button class="tunea" id="rhTap">Tap tempo</button>
+    </div>
+    <p class="cap-msg" id="rhStatus"></p>
+  </section>
+
+  <section class="card">
+    <div class="row">
+      <label class="label" for="rhPreset">Try a rhythm</label>
+      <select id="rhPreset"></select>
+    </div>
+    <div class="seg" id="rhView" role="group" aria-label="Picture style">
+      <button data-v="lines" aria-pressed="true">Lines</button>
+      <button data-v="circle" aria-pressed="false">Circle</button>
+    </div>
+    <div class="rviz" id="rhViz"></div>
+    <div class="why" id="rhWhy"></div>
+    <p class="hint">Tap a dot to accent it or silence it. A line straight down means those layers land together.</p>
+  </section>
+
+  <section class="card">
+    <div class="label">Bar <output id="rhMeter">4/4</output></div>
+    <div class="stepper">
+      <button id="rhBeatsDown" aria-label="Fewer beats">&minus;</button>
+      <span id="rhBeatsVal">4 beats</span>
+      <button id="rhBeatsUp" aria-label="More beats">+</button>
+    </div>
+    <div class="row">
+      <div class="label">Each beat is a</div>
+      <div class="seg" id="rhDen" role="group" aria-label="Note value of one beat">
+        <button data-v="2" aria-pressed="false">half</button>
+        <button data-v="4" aria-pressed="true">quarter</button>
+        <button data-v="8" aria-pressed="false">8th</button>
+        <button data-v="16" aria-pressed="false">16th</button>
+      </div>
+    </div>
+    <div class="row" id="rhGroupRow">
+      <label class="label" for="rhGroup">Accent pattern</label>
+      <select id="rhGroup"></select>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="label">Layers</div>
+    <p class="hint">Each layer has its own sound. Mute or solo layers to hear how they fit together.</p>
+    <div class="lays" id="rhLayers"></div>
+    <button class="clear" id="rhAdd">Add a layer</button>
+  </section>
+
+  <details class="card">
+    <summary>More settings</summary>
+    <div class="inner">
+      <div class="row">
+        <div class="label">Volume <output id="rhVolOut"></output></div>
+        <input type="range" id="rhVol" min="20" max="100" step="1" value="80" aria-label="Volume">
+      </div>
+      <div class="row">
+        <div class="label">Play this many bars</div>
+        <div class="stepper">
+          <button id="rhOnDown" aria-label="Fewer bars">&minus;</button>
+          <span id="rhOnVal">4</span>
+          <button id="rhOnUp" aria-label="More bars">+</button>
+        </div>
+      </div>
+      <div class="row">
+        <div class="label">Then silence this many</div>
+        <div class="stepper">
+          <button id="rhOffDown" aria-label="Fewer silent bars">&minus;</button>
+          <span id="rhOffVal">off</span>
+          <button id="rhOffUp" aria-label="More silent bars">+</button>
+        </div>
+        <p class="hint">Keep counting through the silent bars and see if you land back with the click.</p>
+      </div>
+      <div class="row">
+        <div class="label">Spread layers left and right</div>
+        <div class="seg" id="rhSpread" role="group" aria-label="Spread layers">
+          <button data-v="off" aria-pressed="true">Off</button>
+          <button data-v="on" aria-pressed="false">On</button>
+        </div>
+        <p class="hint">Headphones only. Each layer comes from a different side so it is easier to follow.</p>
+      </div>
+      <button class="clear" id="rhReset">Reset rhythm</button>
+    </div>
+  </details>
+
+  <p class="hint" id="buildTag2" style="text-align:center;opacity:.6"></p>
   </div>
 </main>
 
@@ -515,7 +655,7 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
     if (saved.inst && instById[saved.inst]) s.inst = saved.inst;
     if (saved.a4 >= 410 && saved.a4 <= 450) s.a4 = saved.a4;
     if (saved.vol >= 0 && saved.vol <= 1) s.vol = saved.vol;
-    if (saved.tab === 'drone' || saved.tab === 'tuner') s.tab = saved.tab;
+    if (saved.tab === 'drone' || saved.tab === 'tuner' || saved.tab === 'rhythm') s.tab = saved.tab;
     if (['triangle','sine','sawtooth','oboe'].indexOf(saved.wave) >= 0) s.wave = saved.wave;
   } catch (e) {}
   function save() {
@@ -1568,14 +1708,604 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
   });
   mark('sensSeg', tSens);
 
+  // ---------- rhythm: metronome and polyrhythm layers ----------
+  var RKEY = 'orchestra-rhythm';
+  var R_SOUNDS = [['low', 'Low drum'], ['wood', 'Wood'], ['click', 'Click'], ['bell', 'Bell'], ['hat', 'Hat']];
+  var R_DEF = ['wood', 'bell', 'low', 'hat', 'click', 'wood'];
+  var R_PAN = [-0.6, 0.6, 0, -0.9, 0.9, 0.3];
+  var R_MAX = 6, R_LOOK = 0.15, GX0 = 38, GXW = 350;
+  var DENS = [2, 4, 8, 16];
+  var DEN_NAME = { 2: 'half', 4: 'quarter', 8: '8th', 16: '16th' };
+  var NOTE_NAME = { 1: 'whole', 2: 'half', 4: 'quarter', 8: '8th', 16: '16th', 32: '32nd', 64: '64th' };
+  var TUP = { 3: 'triplets', 5: 'quintuplets', 6: 'sextuplets', 7: 'septuplets' };
+  // [key, label, beats, beat note, extra layers (hits per bar), accent groups]
+  var R_PRESETS = [
+    ['Meters', [
+      ['44', '4/4 plain click', 4, 4, []],
+      ['34', '3/4 plain click', 3, 4, []],
+      ['58', '5/8, counted 3 + 2', 5, 8, [], [3, 2]],
+      ['78', '7/8, counted 2 + 2 + 3', 7, 8, [], [2, 2, 3]],
+      ['68', '6/8, counted 3 + 3', 6, 8, [], [3, 3]]
+    ]],
+    ['Subdivisions', [
+      ['sub', 'Beat, 8ths and 16ths (4/4)', 4, 4, [8, 16]],
+      ['tri', '8ths against triplets (4/4)', 4, 4, [8, 12]]
+    ]],
+    ['Polyrhythms', [
+      ['p32', '3 against 2', 2, 4, [3]],
+      ['p34', '3 against 4', 4, 4, [3]],
+      ['p43', '4 against 3', 3, 4, [4]],
+      ['p54', '5 against 4', 4, 4, [5]],
+      ['p53', '5 against 3', 3, 4, [5]],
+      ['p74', '7 against 4', 4, 4, [7]],
+      ['p345', '3 against 4 against 5', 4, 4, [3, 5]]
+    ]]
+  ];
+
+  var rh = { bpm: 80, beats: 4, den: 4, group: [4], layers: [], gapOn: 4, gapOff: 0, vol: 0.8, spread: false,
+             view: 'lines', running: false, live: false, sched: 0 };
+  var rctx = null, rmaster = null, rbus = null, rnoise = null, rTimer = null, rRaf = 0, rWake = null;
+  var clk = { t0: 0, ph0: 0 };           // phase (in bars) was ph0 at time t0; one bar lasts cyc() seconds
+  var rDots = [], rFlash = [], rLastStatus = '', rTaps = [];
+
+  function rclamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+  function gcd(a, b) { while (b) { var t = a % b; a = b; b = t; } return a; }
+  function lcm(a, b) { return a / gcd(a, b) * b; }
+  function cyc() { return rh.beats * 60 / rh.bpm; }
+  function tOf(ph) { return clk.t0 + (ph - clk.ph0) * cyc(); }
+  function phOf(t) { return clk.ph0 + (t - clk.t0) / cyc(); }
+
+  function defGroup(n) {
+    var g = { 5: [3, 2], 6: [3, 3], 7: [2, 2, 3], 8: [4, 4], 9: [3, 3, 3], 10: [3, 2, 3, 2], 11: [3, 3, 3, 2], 12: [3, 3, 3, 3] }[n];
+    return g ? g.slice() : [n];
+  }
+  function basePat(n) { var p = []; for (var i = 0; i < n; i++) p.push(1); return p; }
+  function groupPat(g, n) {
+    var p = basePat(n), pos = 0;
+    g.forEach(function (len) { if (pos < n) p[pos] = 2; pos += len; });
+    return p;
+  }
+  function mkLayer(n, snd) { return { n: n, snd: snd, mute: false, solo: false, pat: basePat(n), g: 0 }; }
+
+  function rDefaults() {
+    rh.bpm = 80; rh.beats = 4; rh.den = 4; rh.group = defGroup(4);
+    rh.layers = [mkLayer(4, R_DEF[0])];
+    rh.layers[0].pat = groupPat(rh.group, 4);
+    rh.gapOn = 4; rh.gapOff = 0; rh.vol = 0.8; rh.spread = false; rh.view = 'lines';
+  }
+  function rLoad() {
+    rDefaults();
+    try {
+      var d = JSON.parse(localStorage.getItem(RKEY) || 'null');
+      if (!d || typeof d !== 'object') return;
+      var snds = R_SOUNDS.map(function (x) { return x[0]; });
+      var bpm = +d.bpm, beats = d.beats | 0;
+      if (bpm >= 20 && bpm <= 300) rh.bpm = Math.round(bpm);
+      if (beats >= 1 && beats <= 16) rh.beats = beats;
+      if (DENS.indexOf(d.den) >= 0) rh.den = d.den;
+      if (Array.isArray(d.group) && d.group.every(function (x) { return x >= 1 && x === (x | 0); }) &&
+          d.group.reduce(function (a, b) { return a + b; }, 0) === rh.beats) rh.group = d.group;
+      else if (d.group === null) rh.group = null;
+      else rh.group = defGroup(rh.beats);
+      var ls = Array.isArray(d.layers) ? d.layers.slice(0, R_MAX) : [];
+      var out = [];
+      ls.forEach(function (x, j) {
+        var n = j === 0 ? rh.beats : (x.n | 0);
+        if (n < 1 || n > 32) return;
+        var L = mkLayer(n, snds.indexOf(x.snd) >= 0 ? x.snd : R_DEF[j]);
+        L.mute = x.mute === true; L.solo = x.solo === true;
+        if (Array.isArray(x.pat) && x.pat.length === n && x.pat.every(function (v) { return v === 0 || v === 1 || v === 2; })) L.pat = x.pat.slice();
+        else if (j === 0) L.pat = rh.group ? groupPat(rh.group, n) : basePat(n);
+        out.push(L);
+      });
+      if (out.length && ls[0] && (ls[0].n | 0) >= 1) rh.layers = out;
+      if (rh.layers.length === 0 || rh.layers[0].n !== rh.beats) throw new Error('bad');
+      var on = d.gapOn | 0, off = d.gapOff | 0;
+      if (on >= 1 && on <= 8) rh.gapOn = on;
+      if (off >= 0 && off <= 8) rh.gapOff = off;
+      if (+d.vol >= 0.2 && +d.vol <= 1) rh.vol = +d.vol;
+      rh.spread = d.spread === true;
+      if (d.view === 'circle') rh.view = 'circle';
+    } catch (e) { rDefaults(); }
+  }
+  function rSave() {
+    try {
+      localStorage.setItem(RKEY, JSON.stringify({
+        bpm: rh.bpm, beats: rh.beats, den: rh.den, group: rh.group, gapOn: rh.gapOn, gapOff: rh.gapOff,
+        vol: rh.vol, spread: rh.spread, view: rh.view,
+        layers: rh.layers.map(function (L) { return { n: L.n, snd: L.snd, mute: L.mute, solo: L.solo, pat: L.pat }; })
+      }));
+    } catch (e) {}
+  }
+
+  // ----- sounds -----
+  function rBuild() {
+    var AC = window.AudioContext || window.webkitAudioContext;
+    rctx = new AC();
+    rmaster = rctx.createGain();
+    rmaster.gain.value = rh.vol;
+    var comp = rctx.createDynamicsCompressor();
+    comp.threshold.value = -14; comp.ratio.value = 6; comp.attack.value = 0.002; comp.release.value = 0.12;
+    rmaster.connect(comp); comp.connect(rctx.destination);
+    var len = Math.floor(rctx.sampleRate * 0.25), buf = rctx.createBuffer(1, len, rctx.sampleRate), d = buf.getChannelData(0);
+    for (var i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+    rnoise = buf;
+  }
+  function rEnv(g, t, peak, dur) {
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(peak, t + 0.003);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  }
+  function rOsc(type, f0, f1, t, dur, out, amp) {
+    var o = rctx.createOscillator(), dst = out;
+    o.type = type;
+    o.frequency.setValueAtTime(f0, t);
+    if (f1 !== f0) o.frequency.exponentialRampToValueAtTime(f1, t + dur * 0.7);
+    if (amp !== undefined && amp !== 1) { dst = rctx.createGain(); dst.gain.value = amp; dst.connect(out); }
+    o.connect(dst); o.start(t); o.stop(t + dur + 0.03);
+  }
+  // acc: true for an accented hit (louder and a little higher)
+  function rVoice(snd, t, acc, pan, dest) {
+    var g = rctx.createGain(), k = acc ? 1 : 0.55, p;
+    if (pan && rctx.createStereoPanner) { p = rctx.createStereoPanner(); p.pan.value = pan; g.connect(p); p.connect(dest); }
+    else g.connect(dest);
+    if (snd === 'low') {
+      rEnv(g, t, k + 0.1, 0.24); rOsc('sine', acc ? 200 : 160, 55, t, 0.24, g);
+    } else if (snd === 'wood') {
+      var fw = acc ? 1300 : 1000;
+      rEnv(g, t, 0.9 * k, 0.08); rOsc('sine', fw, fw, t, 0.08, g); rOsc('triangle', fw * 2.4, fw * 2.4, t, 0.05, g, 0.3);
+    } else if (snd === 'click') {
+      var fc = acc ? 3200 : 2400;
+      rEnv(g, t, 0.8 * k, 0.04); rOsc('sine', fc, fc, t, 0.04, g);
+    } else if (snd === 'bell') {
+      var fb = acc ? 1319 : 1047;
+      rEnv(g, t, 0.7 * k, 0.6); rOsc('sine', fb, fb, t, 0.6, g); rOsc('sine', fb * 2.0, fb * 2.0, t, 0.4, g, 0.4); rOsc('sine', fb * 3.01, fb * 3.01, t, 0.25, g, 0.2);
+    } else {
+      var src = rctx.createBufferSource(), hp = rctx.createBiquadFilter();
+      src.buffer = rnoise; hp.type = 'highpass'; hp.frequency.value = acc ? 5000 : 7000;
+      src.connect(hp); hp.connect(g);
+      rEnv(g, t, 0.8 * k, acc ? 0.11 : 0.06); src.start(t); src.stop(t + 0.13);
+    }
+  }
+  function rPreview(snd) {
+    if (!rctx) rBuild();
+    rctx.resume().then(function () {
+      var b = rctx.createGain();
+      b.connect(rmaster); rmaster.gain.value = rh.vol;
+      rVoice(snd, rctx.currentTime + 0.02, true, 0, b);
+      setTimeout(function () { try { b.disconnect(); } catch (e) {} if (!rh.running && rctx.state === 'running') rctx.suspend(); }, 900);
+    });
+  }
+
+  // ----- scheduler -----
+  function anySolo() { return rh.layers.some(function (L) { return L.solo; }); }
+  function isAud(L) { return anySolo() ? L.solo : !L.mute; }
+  function audibleLayers() {
+    var out = [];
+    rh.layers.forEach(function (L, j) { if (isAud(L)) out.push({ L: L, j: j }); });
+    return out;
+  }
+  function barAudible(b) {
+    if (!rh.gapOff) return true;
+    return (b % (rh.gapOn + rh.gapOff)) < rh.gapOn;
+  }
+  function rTick() {
+    if (!rh.running || !rh.live) return;
+    var now = rctx.currentTime, H = now + R_LOOK, solo = anySolo();
+    rh.layers.forEach(function (L, j) {
+      for (var guard = 0; guard < 500; guard++) {
+        var t = tOf(L.g / L.n);
+        if (t >= H) break;
+        if (t >= now - 0.03) {
+          var st = L.pat[L.g % L.n];
+          if (st && (solo ? L.solo : !L.mute) && barAudible(Math.floor(L.g / L.n))) {
+            rVoice(L.snd, t, st === 2, rh.spread && rh.layers.length > 1 ? R_PAN[j] : 0, rbus);
+          }
+        }
+        L.g++;
+      }
+    });
+    rh.sched = H;
+  }
+  // Changes to tempo, bar length or layers go through here so every layer stays on the same clock.
+  function rBefore() {
+    if (!rh.live) return;
+    var tref = Math.max(rctx.currentTime + 0.01, rh.sched);
+    clk.ph0 = phOf(tref); clk.t0 = tref;
+  }
+  function rAfter() {
+    if (!rh.live) return;
+    rh.layers.forEach(function (L) { L.g = Math.max(0, Math.ceil(phOf(clk.t0) * L.n - 1e-9)); });
+  }
+  function rChange(fn, light) {
+    rBefore(); fn(); rAfter();
+    if (light) { rUITempo(); } else { rUI(); rDraw(); }
+    rSave();
+  }
+
+  function rStart() {
+    if (rh.running) return;
+    if (!rctx) rBuild();
+    rh.running = true; rh.live = false;
+    rbus = rctx.createGain();
+    rbus.connect(rmaster); rmaster.gain.value = rh.vol;
+    try {
+      if (navigator.wakeLock) navigator.wakeLock.request('screen').then(function (l) { if (rh.running) rWake = l; else l.release(); }, function () {});
+    } catch (e) {}
+    rctx.resume().then(function () {
+      if (!rh.running) return;
+      clk.t0 = rctx.currentTime + 0.12; clk.ph0 = 0; rh.sched = clk.t0;
+      rh.layers.forEach(function (L) { L.g = 0; });
+      rh.live = true;
+      rTick();
+      rTimer = setInterval(rTick, 25);
+      rRaf = requestAnimationFrame(rFrame);
+      rDraw();
+    });
+    rUI();
+  }
+  function rStop() {
+    if (!rh.running) return;
+    rh.running = false; rh.live = false;
+    clearInterval(rTimer); rTimer = null; cancelAnimationFrame(rRaf);
+    if (rbus) {
+      var b = rbus; rbus = null;
+      b.gain.setTargetAtTime(0, rctx.currentTime, 0.01);
+      setTimeout(function () { try { b.disconnect(); } catch (e) {} }, 300);
+    }
+    setTimeout(function () { if (!rh.running && rctx && rctx.state === 'running') rctx.suspend(); }, 500);
+    if (rWake) { try { rWake.release(); } catch (e) {} rWake = null; }
+    rLastStatus = '';
+    rUI(); rDraw();
+  }
+
+  // ----- pictures -----
+  function slotsOf(aud) {
+    var L = 1;
+    for (var q = 0; q < aud.length; q++) { L = lcm(L, aud[q].L.n); if (L > 480) return 0; }
+    return aud.length ? L : 0;
+  }
+  function meetsOf(aud) {
+    var m = {}, keys = [], k;
+    aud.forEach(function (o) { o.L.pat.forEach(function (st, i) { if (st) { k = i / o.L.n; m[k] = (m[k] || 0) + 1; } }); });
+    for (k in m) if (m[k] > 1) keys.push({ p: +k, c: m[k] });
+    keys.sort(function (a, b) { return a.p - b.p; });
+    return keys;
+  }
+  function stNext(st) { return st === 1 ? 2 : st === 2 ? 0 : 1; }
+
+  function drawLines(meets, Ls) {
+    var N = rh.beats, K = rh.layers.length, ROW = 44, TOP = 28, ruler = Ls > 0 && Ls <= 48, RH = ruler ? 28 : 8;
+    var yEnd = TOP + K * ROW, H = yEnd + RH, s, b, x, j, i;
+    s = '<svg viewBox="0 0 400 ' + H + '" role="img" aria-label="Timeline of the layers across one bar">';
+    for (b = 0; b <= N; b++) {
+      x = GX0 + b / N * GXW;
+      s += '<line class="rbeat" x1="' + x + '" x2="' + x + '" y1="16" y2="' + yEnd + '"' + (b === N ? ' stroke-dasharray="3 3"' : '') + '/>';
+      if (b < N) s += '<text class="rtxt" x="' + x + '" y="12" text-anchor="middle">' + (b + 1) + '</text>';
+    }
+    meets.forEach(function (m) {
+      x = GX0 + m.p * GXW;
+      s += '<line class="rmeet" x1="' + x + '" x2="' + x + '" y1="16" y2="' + yEnd + '" stroke-width="' + (1 + (m.c - 1) * 1.2) + '"/>';
+    });
+    rh.layers.forEach(function (L, j) {
+      var y = TOP + j * ROW + ROW / 2;
+      s += '<g class="' + (isAud(L) ? '' : 'off') + '"><line class="rbase" x1="' + GX0 + '" x2="' + (GX0 + GXW) + '" y1="' + y + '" y2="' + y + '"/>';
+      s += '<text class="rlab l' + j + '" x="2" y="' + (y + 5) + '">' + L.n + '</text>';
+      for (i = 0; i < L.n; i++) {
+        var st = L.pat[i], cx = (GX0 + i / L.n * GXW).toFixed(1);
+        s += '<circle class="rdot l' + j + (st ? '' : ' sil') + '" cx="' + cx + '" cy="' + y + '" r="' + (st === 2 ? 9 : 6) + '" data-l="' + j + '" data-i="' + i + '"/>';
+      }
+      s += '</g>';
+    });
+    rh.layers.forEach(function (L, j) {
+      var y = TOP + j * ROW + ROW / 2, hr = Math.max(5, Math.min(15, GXW / L.n / 2));
+      for (var i = 0; i < L.n; i++) {
+        s += '<circle class="rhit" cx="' + (GX0 + i / L.n * GXW).toFixed(1) + '" cy="' + y + '" r="' + hr.toFixed(1) + '" data-l="' + j + '" data-i="' + i + '"/>';
+      }
+    });
+    if (ruler) {
+      var y0 = yEnd + 4;
+      for (var q = 0; q < Ls; q++) {
+        x = GX0 + q / Ls * GXW;
+        var isB = (q * N) % Ls === 0;
+        s += '<line class="rtick" x1="' + x + '" x2="' + x + '" y1="' + y0 + '" y2="' + (y0 + (isB ? 9 : 5)) + '"/>';
+        if (Ls <= 24) s += '<text class="rtxt" x="' + x + '" y="' + (y0 + 21) + '" text-anchor="middle">' + (q + 1) + '</text>';
+      }
+      if (Ls <= 24) s += '<text class="rtxt" x="2" y="' + (y0 + 21) + '">count</text>';
+    }
+    s += '<line id="rhHead" class="rhead" x1="' + GX0 + '" x2="' + GX0 + '" y1="14" y2="' + yEnd + '" style="display:none"/>';
+    return s + '</svg>';
+  }
+  function drawCircle(meets) {
+    var K = rh.layers.length, cx = 150, cy = 150, R0 = 128, step = K > 1 ? Math.min(24, (R0 - 34) / (K - 1)) : 0, s;
+    function pt(r, p) { var a = p * 2 * Math.PI - Math.PI / 2; return [cx + r * Math.cos(a), cy + r * Math.sin(a)]; }
+    s = '<svg viewBox="0 0 300 300" role="img" aria-label="Circle showing the layers around one bar">';
+    meets.forEach(function (m) {
+      var e = pt(R0 + 10, m.p);
+      s += '<line class="rmeet" x1="' + cx + '" y1="' + cy + '" x2="' + e[0].toFixed(1) + '" y2="' + e[1].toFixed(1) + '" stroke-width="' + (1 + (m.c - 1) * 1.2) + '"/>';
+    });
+    rh.layers.forEach(function (L, j) {
+      var r = R0 - j * step, i, pts = [];
+      s += '<g class="' + (isAud(L) ? '' : 'off') + '"><circle class="rbase" cx="' + cx + '" cy="' + cy + '" r="' + r.toFixed(1) + '"/>';
+      for (i = 0; i < L.n; i++) pts.push(pt(r, i / L.n));
+      if (L.n >= 3) s += '<polygon class="rpoly l' + j + '" points="' + pts.map(function (q) { return q[0].toFixed(1) + ',' + q[1].toFixed(1); }).join(' ') + '"/>';
+      else if (L.n === 2) s += '<line class="rpoly l' + j + '" x1="' + pts[0][0].toFixed(1) + '" y1="' + pts[0][1].toFixed(1) + '" x2="' + pts[1][0].toFixed(1) + '" y2="' + pts[1][1].toFixed(1) + '"/>';
+      for (i = 0; i < L.n; i++) {
+        var st = L.pat[i];
+        s += '<circle class="rdot l' + j + (st ? '' : ' sil') + '" cx="' + pts[i][0].toFixed(1) + '" cy="' + pts[i][1].toFixed(1) + '" r="' + (st === 2 ? 7 : 4.5) + '" data-l="' + j + '" data-i="' + i + '"/>';
+      }
+      s += '</g>';
+    });
+    rh.layers.forEach(function (L, j) {
+      var r = R0 - j * step, hr = Math.max(5, Math.min(14, 2 * Math.PI * r / L.n / 2));
+      for (var i = 0; i < L.n; i++) {
+        var q = pt(r, i / L.n);
+        s += '<circle class="rhit" cx="' + q[0].toFixed(1) + '" cy="' + q[1].toFixed(1) + '" r="' + hr.toFixed(1) + '" data-l="' + j + '" data-i="' + i + '"/>';
+      }
+    });
+    s += '<text class="rctr" x="' + cx + '" y="' + (cy + 6) + '">' + rh.beats + '/' + rh.den + '</text>';
+    s += '<line id="rhHead" class="rhead" x1="' + cx + '" y1="' + cy + '" x2="' + cx + '" y2="' + (cy - R0 - 12) + '" style="display:none"/>';
+    return s + '</svg>';
+  }
+  function listNums(a) { return a.length > 8 ? a.slice(0, 6).join(', ') + ' ...' : a.join(', '); }
+  function whyHTML(aud, meets, Ls) {
+    if (rh.layers.length < 2) return 'Add a layer to see and hear two rhythms against each other.';
+    if (aud.length < 2) return 'Only one layer is sounding. Unmute another to compare.';
+    var h = '';
+    if (Ls > 0 && Ls <= 48) {
+      h += '<div><b>Count 1 to ' + Ls + ' in each bar.</b></div>';
+      aud.forEach(function (o) {
+        var step = Ls / o.L.n, hits = [], all = true;
+        o.L.pat.forEach(function (st, i) { if (st) hits.push(i * step + 1); else all = false; });
+        h += '<div><i class="sw sm l' + o.j + '"></i>' + o.L.n + ' lands on ' +
+          (all && hits.length > 6 ? (step === 1 ? 'every number' : 'every ' + step + (step === 2 ? 'nd' : step === 3 ? 'rd' : 'th') + ' number') : listNums(hits)) + '</div>';
+      });
+      var sl = meets.map(function (m) { return Math.round(m.p * Ls) + 1; });
+      if (!sl.length) h += '<div>They never land together (some hits are silenced).</div>';
+      else if (sl.length === 1 && sl[0] === 1) h += '<div>They land together only on 1, the downbeat.</div>';
+      else h += '<div>They land together on ' + listNums(sl) + ' (' + sl.length + (sl.length === 1 ? ' time' : ' times') + ' a bar).</div>';
+    } else {
+      h += '<div><b>There is no easy count for these.</b> They land together ' + meets.length + (meets.length === 1 ? ' time' : ' times') + ' a bar. Listen for those spots.</div>';
+    }
+    if (aud.length === 2) {
+      var a = aud[0].L.n, b = aud[1].L.n, g = gcd(a, b);
+      h += '<div>That is the ratio ' + (a / g) + ' : ' + (b / g) + (g > 1 ? ', repeated ' + g + ' times a bar.' : '.') + '</div>';
+    }
+    return h;
+  }
+  function rDraw() {
+    var aud = audibleLayers(), meets = meetsOf(aud), Ls = slotsOf(aud), viz = $('rhViz');
+    viz.className = 'rviz' + (rh.view === 'circle' ? ' circle' : '');
+    viz.innerHTML = rh.view === 'circle' ? drawCircle(meets) : drawLines(meets, Ls);
+    rDots = []; rFlash = [];
+    Array.prototype.forEach.call(viz.querySelectorAll('.rdot'), function (el) {
+      var l = +el.getAttribute('data-l'), i = +el.getAttribute('data-i');
+      (rDots[l] = rDots[l] || [])[i] = el;
+    });
+    $('rhWhy').innerHTML = whyHTML(aud, meets, Ls);
+    var h = $('rhHead');
+    if (h) h.style.display = rh.live ? '' : 'none';
+  }
+  function rFrame() {
+    if (!rh.running) return;
+    rRaf = requestAnimationFrame(rFrame);
+    if (!rh.live) return;
+    var td = rctx.currentTime - (rctx.outputLatency || rctx.baseLatency || 0), ph = phOf(td);
+    var p = Math.max(0, ph), fr = p - Math.floor(p), head = $('rhHead');
+    if (head) {
+      if (rh.view === 'circle') head.setAttribute('transform', 'rotate(' + (fr * 360).toFixed(1) + ' 150 150)');
+      else { var x = (GX0 + fr * GXW).toFixed(1); head.setAttribute('x1', x); head.setAttribute('x2', x); }
+    }
+    var solo = anySolo();
+    rh.layers.forEach(function (L, j) {
+      var g = Math.floor(ph * L.n + 1e-9), el = null;
+      if (g >= 0 && td - tOf(g / L.n) < 0.13 && L.pat[g % L.n] > 0 && (solo ? L.solo : !L.mute) && barAudible(Math.floor(g / L.n))) {
+        el = rDots[j] && rDots[j][g % L.n];
+      }
+      var prev = rFlash[j];
+      if (prev !== el) {
+        if (prev) prev.classList.remove('hit');
+        if (el) el.classList.add('hit');
+        rFlash[j] = el;
+      }
+    });
+    var bar = Math.floor(p) + 1, beat = Math.floor(fr * rh.beats) + 1, quiet = !barAudible(bar - 1);
+    var txt = 'Bar ' + bar + ', beat ' + beat + (quiet ? '. Silent bar: keep counting.' : '');
+    if (txt !== rLastStatus) { rLastStatus = txt; $('rhStatus').textContent = txt; }
+  }
+
+  // ----- controls -----
+  function layerName(n) {
+    var N = rh.beats, den = rh.den;
+    if (n === 1 && N > 1) return 'once a bar';
+    if (n % N === 0) {
+      var k = n / N;
+      if ((k & (k - 1)) === 0) {
+        var nm = NOTE_NAME[den * k];
+        if (!nm) return k + ' per beat';
+        return nm + ' notes' + (k === 1 ? ' (the beat)' : ' (' + k + ' per beat)');
+      }
+      return (TUP[k] || k + '-tuplets') + ' (' + k + ' per beat)';
+    }
+    if (N % n === 0) return 'every ' + (N / n) + ' beats';
+    return n + ' in the space of ' + N + ' beats';
+  }
+  function groupOptions(n) {
+    var out = [[n]], comps = [], ones = [], i;
+    if (n >= 2) { for (i = 0; i < n; i++) ones.push(1); out.push(ones); }
+    (function rec(rem, cur) {
+      if (rem === 0) { comps.push(cur.slice()); return; }
+      [3, 2].forEach(function (p) { if (p <= rem) { cur.push(p); rec(rem - p, cur); cur.pop(); } });
+    })(n, []);
+    comps = comps.filter(function (c) { return c.length > 1; });
+    comps.sort(function (a, b) { return a.length - b.length || (a.join('') < b.join('') ? 1 : -1); });
+    return out.concat(comps.slice(0, 8));
+  }
+  function groupLabel(g, n) {
+    if (g.length === 1) return 'Accent beat 1 only';
+    if (g.length === n && g.every(function (x) { return x === 1; })) return 'Accent every beat';
+    return 'Accent ' + g.join(' + ');
+  }
+  function rLayersHTML() {
+    var solo = anySolo();
+    return rh.layers.map(function (L, j) {
+      var top = j === 0
+        ? '<div class="lay-n"><b>Beat</b>, ' + L.n + ' a bar</div>'
+        : '<div class="stepper"><button data-a="dec" aria-label="Fewer hits">&minus;</button><span>' + L.n + '</span><button data-a="inc" aria-label="More hits">+</button></div>';
+      var opts = R_SOUNDS.map(function (x) { return '<option value="' + x[0] + '"' + (x[0] === L.snd ? ' selected' : '') + '>' + x[1] + '</option>'; }).join('');
+      return '<div class="lay' + ((solo ? !L.solo : L.mute) ? ' dim' : '') + '" data-l="' + j + '">' +
+        '<div class="lay-top"><i class="sw l' + j + '"></i>' + top + '<span class="lay-name">' + layerName(L.n) + '</span></div>' +
+        '<div class="lay-bot"><select data-a="snd" aria-label="Sound for layer ' + (j + 1) + '">' + opts + '</select>' +
+        '<button class="mini" data-a="mute" aria-pressed="' + L.mute + '">Mute</button>' +
+        '<button class="mini" data-a="solo" aria-pressed="' + L.solo + '">Solo</button>' +
+        (j ? '<button class="mini" data-a="del" aria-label="Remove layer">&times;</button>' : '') + '</div></div>';
+    }).join('');
+  }
+  function rUITempo() {
+    $('rhBpm').textContent = rh.bpm;
+    $('rhSlide').value = rh.bpm;
+  }
+  function rUI() {
+    rUITempo();
+    $('rhUnit').textContent = 'beats per minute. Each beat is a ' + DEN_NAME[rh.den] + ' note.';
+    $('rhPlay').textContent = rh.running ? 'Stop' : 'Start';
+    $('rhPlay').setAttribute('aria-pressed', String(rh.running));
+    if (!rh.running) $('rhStatus').textContent = '';
+    $('rhMeter').textContent = rh.beats + '/' + rh.den;
+    $('rhBeatsVal').textContent = rh.beats + (rh.beats === 1 ? ' beat' : ' beats');
+    mark('rhDen', rh.den); mark('rhView', rh.view); mark('rhSpread', rh.spread ? 'on' : 'off');
+    var opts = groupOptions(rh.beats), cur = rh.group ? rh.group.join('+') : 'custom';
+    $('rhGroup').innerHTML = opts.map(function (g) {
+      return '<option value="' + g.join('+') + '"' + (g.join('+') === cur ? ' selected' : '') + '>' + groupLabel(g, rh.beats) + '</option>';
+    }).join('') + (rh.group ? '' : '<option value="custom" selected>Custom (tapped dots)</option>');
+    $('rhGroupRow').hidden = rh.beats < 2;
+    $('rhLayers').innerHTML = rLayersHTML();
+    $('rhAdd').hidden = rh.layers.length >= R_MAX;
+    $('rhVol').value = Math.round(rh.vol * 100);
+    $('rhVolOut').textContent = Math.round(rh.vol * 100) + '%';
+    $('rhOnVal').textContent = rh.gapOn;
+    $('rhOffVal').textContent = rh.gapOff ? rh.gapOff : 'off';
+    $('buildTag2').textContent = $('buildTag').textContent;
+  }
+  function applyPreset(key) {
+    var p = null;
+    R_PRESETS.forEach(function (g) { g[1].forEach(function (x) { if (x[0] === key) p = x; }); });
+    if (!p) return;
+    rChange(function () {
+      rh.beats = p[2]; rh.den = p[3]; rh.group = p[5] ? p[5].slice() : defGroup(p[2]);
+      rh.layers = [mkLayer(p[2], R_DEF[0])];
+      rh.layers[0].pat = groupPat(rh.group, p[2]);
+      p[4].forEach(function (n, i) { rh.layers.push(mkLayer(n, R_DEF[i + 1])); });
+    });
+  }
+  function setBeats(b) {
+    b = rclamp(b, 1, 16);
+    if (b === rh.beats) return;
+    rChange(function () {
+      rh.beats = b; rh.group = defGroup(b);
+      var L = rh.layers[0]; L.n = b; L.pat = groupPat(rh.group, b);
+    });
+  }
+  function setBpm(v) { rChange(function () { rh.bpm = rclamp(Math.round(v), 20, 300); }, true); }
+
+  (function rInit() {
+    rLoad();
+    $('rhPreset').innerHTML = '<option value="">Pick an example...</option>' + R_PRESETS.map(function (g) {
+      return '<optgroup label="' + g[0] + '">' + g[1].map(function (x) { return '<option value="' + x[0] + '">' + x[1] + '</option>'; }).join('') + '</optgroup>';
+    }).join('');
+    $('rhPlay').addEventListener('click', function () { if (rh.running) rStop(); else rStart(); });
+    $('rhMinus').addEventListener('click', function () { setBpm(rh.bpm - 1); });
+    $('rhPlus').addEventListener('click', function () { setBpm(rh.bpm + 1); });
+    $('rhSlide').addEventListener('input', function (e) { setBpm(+e.target.value); });
+    $('rhTap').addEventListener('click', function () {
+      var now = performance.now();
+      if (rTaps.length && now - rTaps[rTaps.length - 1] > 2000) rTaps = [];
+      rTaps.push(now);
+      if (rTaps.length > 5) rTaps.shift();
+      if (rTaps.length >= 2) setBpm(60000 / ((rTaps[rTaps.length - 1] - rTaps[0]) / (rTaps.length - 1)));
+    });
+    $('rhPreset').addEventListener('change', function (e) { var v = e.target.value; e.target.value = ''; if (v) applyPreset(v); });
+    $('rhView').addEventListener('click', function (e) {
+      var b = e.target.closest('button');
+      if (b) { rh.view = b.dataset.v; mark('rhView', rh.view); rDraw(); rSave(); }
+    });
+    $('rhBeatsDown').addEventListener('click', function () { setBeats(rh.beats - 1); });
+    $('rhBeatsUp').addEventListener('click', function () { setBeats(rh.beats + 1); });
+    $('rhDen').addEventListener('click', function (e) {
+      var b = e.target.closest('button');
+      if (b) { rh.den = +b.dataset.v; rUI(); rDraw(); rSave(); }
+    });
+    $('rhGroup').addEventListener('change', function (e) {
+      if (e.target.value === 'custom') return;
+      rh.group = e.target.value.split('+').map(Number);
+      rh.layers[0].pat = groupPat(rh.group, rh.beats);
+      rUI(); rDraw(); rSave();
+    });
+    $('rhViz').addEventListener('click', function (e) {
+      var h = e.target.closest('.rhit');
+      if (!h) return;
+      var j = +h.getAttribute('data-l'), i = +h.getAttribute('data-i'), L = rh.layers[j];
+      if (!L) return;
+      L.pat[i] = stNext(L.pat[i]);
+      if (j === 0) rh.group = null;
+      rUI(); rDraw(); rSave();
+    });
+    $('rhLayers').addEventListener('click', function (e) {
+      var b = e.target.closest('button[data-a]'), box = e.target.closest('.lay');
+      if (!b || !box) return;
+      var j = +box.dataset.l, L = rh.layers[j], a = b.dataset.a;
+      if (!L) return;
+      if (a === 'mute') { L.mute = !L.mute; rUI(); rDraw(); rSave(); }
+      else if (a === 'solo') { L.solo = !L.solo; rUI(); rDraw(); rSave(); }
+      else if (a === 'del' && j > 0) rChange(function () { rh.layers.splice(j, 1); });
+      else if ((a === 'inc' || a === 'dec') && j > 0) {
+        rChange(function () { L.n = rclamp(L.n + (a === 'inc' ? 1 : -1), 1, 32); L.pat = basePat(L.n); });
+      }
+    });
+    $('rhLayers').addEventListener('change', function (e) {
+      var sel = e.target.closest('select[data-a="snd"]'), box = e.target.closest('.lay');
+      if (!sel || !box) return;
+      var L = rh.layers[+box.dataset.l];
+      if (L) { L.snd = sel.value; rSave(); rPreview(L.snd); }
+    });
+    $('rhAdd').addEventListener('click', function () {
+      if (rh.layers.length >= R_MAX) return;
+      var used = rh.layers.map(function (L) { return L.n; }), cands = [rh.beats * 2, rh.beats * 3, rh.beats + 1, rh.beats + 2, rh.beats * 4, 3, 5, 7], n = 0;
+      cands.forEach(function (c) { if (!n && c <= 32 && c !== rh.beats && used.indexOf(c) < 0) n = c; });
+      if (!n) n = 2;
+      rChange(function () { rh.layers.push(mkLayer(n, R_DEF[rh.layers.length])); });
+    });
+    $('rhVol').addEventListener('input', function (e) {
+      rh.vol = rclamp(+e.target.value / 100, 0.2, 1);
+      if (rmaster) rmaster.gain.value = rh.vol;
+      $('rhVolOut').textContent = Math.round(rh.vol * 100) + '%';
+      rSave();
+    });
+    $('rhOnDown').addEventListener('click', function () { rh.gapOn = rclamp(rh.gapOn - 1, 1, 8); rUI(); rSave(); });
+    $('rhOnUp').addEventListener('click', function () { rh.gapOn = rclamp(rh.gapOn + 1, 1, 8); rUI(); rSave(); });
+    $('rhOffDown').addEventListener('click', function () { rh.gapOff = rclamp(rh.gapOff - 1, 0, 8); rUI(); rSave(); });
+    $('rhOffUp').addEventListener('click', function () { rh.gapOff = rclamp(rh.gapOff + 1, 0, 8); rUI(); rSave(); });
+    $('rhSpread').addEventListener('click', function (e) {
+      var b = e.target.closest('button');
+      if (b) { rh.spread = b.dataset.v === 'on'; mark('rhSpread', b.dataset.v); rSave(); }
+    });
+    $('rhReset').addEventListener('click', function () {
+      rChange(function () { var v = rh.vol; rDefaults(); rh.vol = v; });
+    });
+    rUI(); rDraw();
+  })();
+
   function showTab() {
     $('panel-drone').hidden = s.tab !== 'drone';
     $('panel-tuner').hidden = s.tab !== 'tuner';
+    $('panel-rhythm').hidden = s.tab !== 'rhythm';
+    $('sharedCard').hidden = s.tab === 'rhythm';
     mark('tabSeg', s.tab);
   }
   $('tabSeg').addEventListener('click', function (e) {
     var b = e.target.closest('button');
     if (!b) return;
+    if (b.dataset.v !== 'rhythm') rStop();
     if (b.dataset.v !== 'tuner') { trStop(); hearStop(); }
     if (listening && b.dataset.v !== 'tuner') tStop();
     s.tab = b.dataset.v; showTab(); save();
