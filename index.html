@@ -165,6 +165,7 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
 .hear.sm { min-height: 36px; padding: 0 8px; }
 .rep .rv .hear { align-self: auto; }
 #modeSeg button { font-size: 14px; padding-left: 4px; padding-right: 4px; }
+@media (max-width: 360px) { #modeSeg { flex-wrap: wrap; } #modeSeg button { flex: 1 0 30%; } }
 #trNudge button { font-variant-numeric: tabular-nums; }
 .rbar u { position: absolute; top: 0; width: 10px; height: 10px; margin-left: -5px; border-radius: 50%; border: 2px solid var(--muted); background: var(--surface); box-sizing: border-box; text-decoration: none; }
 .hold div.good { background: var(--good); }
@@ -417,6 +418,7 @@ main { padding-bottom: 120px; }
         <button data-v="notes" aria-pressed="true">Notes</button>
         <button data-v="target" aria-pressed="false">Target</button>
         <button data-v="scale" aria-pressed="false">Scale</button>
+        <button data-v="climb" aria-pressed="false">Climb</button>
         <button data-v="mine" aria-pressed="false">My notes</button>
         <button data-v="beats" aria-pressed="false">Beats</button>
       </div>
@@ -510,7 +512,7 @@ main { padding-bottom: 120px; }
     <div class="guide-step" id="guideStep">&nbsp;</div>
     <div class="guide-text" id="guideText">&nbsp;</div>
     <div class="dots" id="guideDots"></div>
-    <div class="guide-step">How close to pure pitch</div>
+    <div class="guide-step" id="holdLabel">How close to pure pitch</div>
     <div class="hold" aria-hidden="true"><div id="holdFill"></div></div>
     <p class="cap-msg" id="capMsg">&nbsp;</p>
   </section>
@@ -573,7 +575,7 @@ main { padding-bottom: 120px; }
   </section>
   </div>
 
-  <p class="hint" id="buildTag" style="text-align:center;opacity:.6">Version: Nov 8j, iPad: tuner and scale report side by side</p>
+  <p class="hint" id="buildTag" style="text-align:center;opacity:.6">Version: Nov 8k, Climb mode and 4-beat count-in</p>
   <p class="msg" id="msg">Tap Start, allow the microphone, then play one note at a time. The reading is in cents: 100 cents is one half step.</p>
 
   </div>
@@ -1116,6 +1118,7 @@ main { padding-bottom: 120px; }
     notes:  'Shows the nearest note and how many cents sharp or flat you are against piano pitch.',
     target: 'Pick the note you are playing. The meter shows how far you are from its pure (just) pitch over the key.',
     scale:  'Play one note at a time and hold each for at least 2 seconds in total. Breaths and restarts are fine. It moves on when you play the next note.',
+    climb:  'The scale plays the root and the next note. Hold that note in tune for 2.5 seconds and it moves up. Use headphones so the mic only hears you.',
     beats:  'Ear training. Tune one note against a steady one. The wobble slows as you get closer and disappears when it is in tune.',
     mine:   'Play a chromatic scale slowly. The chart saves which notes you tend to play sharp or flat on this instrument.'
   };
@@ -1233,6 +1236,88 @@ main { padding-bottom: 120px; }
   // A note's recording starts at its first sound, keeps going through breaths and restarts (gaps stay blank),
   // and is saved if at least 2 seconds were actually played. It moves on only when you play the next note.
   var guide = { steps: [], i: 0, rec: null, nextCand: [], hear: null }, dirUp = true, capTimer = 0;
+  function guided() { return tMode === 'scale' || tMode === 'climb'; }
+  var CLIMB_HOLD = 2500, CLIMB_TOL = 10;
+  var climb = { hold: 0, last: 0, out: 0 }, climbV = [], cin = { on: false, timers: [] };
+
+  // Four-beat click (60 bpm) before the scale starts
+  function cinStop() { cin.on = false; cin.timers.forEach(clearTimeout); cin.timers = []; }
+  function countIn(done) {
+    cinStop(); cin.on = true;
+    $('guideText').textContent = 'Count in...';
+    audioReady().then(function () {
+      if (!cin.on) return;
+      var t0 = ctx.currentTime + 0.15, k;
+      for (k = 0; k < 4; k++) {
+        (function (k) {
+          var o = ctx.createOscillator(), g = ctx.createGain(), t = t0 + k;
+          o.type = 'sine'; o.frequency.value = k === 0 ? 1900 : 1300;
+          g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(Math.max(0.15, s.vol) * 0.7, t + 0.003); g.gain.exponentialRampToValueAtTime(0.001, t + 0.07);
+          o.connect(g); g.connect(ctx.destination); o.start(t); o.stop(t + 0.1);
+          cin.timers.push(setTimeout(function () { if (cin.on) $('guideText').textContent = 'Count in: ' + (k + 1); }, 150 + k * 1000));
+        })(k);
+      }
+      cin.timers.push(setTimeout(function () { cin.on = false; if (listening) done(); }, 150 + 4000));
+    });
+  }
+  function climbOff() {
+    if (!climbV.length) return;
+    var t = ctx ? ctx.currentTime : 0;
+    climbV.forEach(function (v) { try { v.g.gain.cancelScheduledValues(t); v.g.gain.setTargetAtTime(0, t, 0.02); v.o.stop(t + 0.15); } catch (e) {} });
+    climbV = [];
+    audioDone();
+  }
+  function climbTone(st) {
+    climbOff();
+    if (!st || !listening || tMode !== 'climb') return;
+    audioReady().then(function () {
+      if (guideStep() !== st || climbV.length || !listening || tMode !== 'climb') return;
+      var root = baseFreq(); while (root < 200) root *= 2;
+      var r = SCALES[s.scale][st.deg][1], f = root * r[0] / r[1] * (st.oct ? 2 : 1), t = ctx.currentTime;
+      [[root / 2, 0.55], [f, 1.1]].forEach(function (x) {
+        var o = ctx.createOscillator(), fl = ctx.createBiquadFilter(), g = ctx.createGain(), lv = Math.max(0.05, s.vol) * 0.3 * x[1];
+        o.type = 'sawtooth'; o.frequency.value = x[0];
+        fl.type = 'lowpass'; fl.frequency.value = 2600;
+        g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(lv, t + 0.06);
+        o.connect(fl); fl.connect(g); g.connect(ctx.destination); o.start(t);
+        climbV.push({ o: o, g: g });
+      });
+    });
+  }
+  function setHold(frac, good) {
+    var el = $('holdFill');
+    el.style.width = Math.round(Math.max(0, Math.min(1, frac)) * 100) + '%';
+    el.className = good ? 'good' : '';
+  }
+  function climbFeed(f, ts) {
+    var st = guideStep();
+    if (!st) return;
+    var a = 1200 * Math.log(f / s.a4) / Math.LN2, dev = dd(mod1200(a - rootAbs()), justCents(scaleDegs()[st.deg]));
+    if (Math.abs(dev) <= CLIMB_TOL) {
+      if (climb.last && ts - climb.last < 200) climb.hold += Math.min(ts - climb.last, 100);
+      climb.last = ts; climb.out = 0;
+      setHold(climb.hold / CLIMB_HOLD, true);
+      if (climb.hold >= CLIMB_HOLD) {
+        climb.hold = 0; climb.last = 0;
+        guide.i++;
+        renderGuide();
+        climbTone(guideStep());
+        return;
+      }
+    } else {
+      climb.last = ts;
+      if (!climb.out) climb.out = ts;
+      if (ts - climb.out > 350) climb.hold = 0;
+      setHold(climb.hold / CLIMB_HOLD, false);
+    }
+    updateStepLine();
+  }
+  function climbSilence(ts) {
+    if (ts - lastGood > 350) { climb.hold = 0; climb.last = 0; climb.out = 0; setHold(0, false); }
+  }
+  function beginCount() {
+    countIn(function () { if (tMode === 'climb') climbTone(guideStep()); renderGuide(); });
+  }
   var MIN_VOICED = 2000, SWITCH_FRAMES = 8, LOCK_FRAMES = 9, LOCK_TOL = 5, END_SILENCE = 1500;
 
   function std(a) { var m = mean(a), t = 0; a.forEach(function (v) { t += (v - m) * (v - m); }); return Math.sqrt(t / a.length); }
@@ -1262,7 +1347,9 @@ main { padding-bottom: 120px; }
     up.push({ deg: 0, oct: true });
     guide.steps = dirUp ? up : up.slice().reverse();
     guide.i = 0; guideReset();
+    climb.hold = 0; climb.last = 0; climb.out = 0;
     renderGuide();
+    if (tMode === 'climb' && listening && !cin.on) climbTone(guideStep());
   }
   function setCap(text, state) {
     var el = $('capMsg');
@@ -1279,6 +1366,11 @@ main { padding-bottom: 120px; }
   function updateStepLine() {
     var st = guideStep(), n = guide.steps.length;
     if (!st) { $('guideStep').textContent = 'Finished'; return; }
+    if (tMode === 'climb') {
+      var h = Math.min(CLIMB_HOLD, climb.hold);
+      $('guideStep').textContent = 'Step ' + (guide.i + 1) + ' of ' + n + (listening ? ' · in tune ' + (h / 1000).toFixed(1) + ' / ' + (CLIMB_HOLD / 1000).toFixed(1) + ' s' : '');
+      return;
+    }
     var ms = guide.rec ? voicedMs(guide.rec.f) : 0, line = n > 1 ? 'Step ' + (guide.i + 1) + ' of ' + n : 'Retake';
     if (listening) {
       line += ' · ' + (ms / 1000).toFixed(1) + ' s played';
@@ -1291,10 +1383,12 @@ main { padding-bottom: 120px; }
     var n = guide.steps.length, st = guideStep(), html = '', k;
     for (k = 0; k < n; k++) html += '<i class="' + (k < guide.i ? 'done' : k === guide.i ? 'cur' : '') + '"></i>';
     $('guideDots').innerHTML = html;
-    if (!st) $('guideText').textContent = 'Done. Tap a note below to retake it, or tap Start over.';
+    $('holdLabel').textContent = tMode === 'climb' ? 'Hold it in tune' : 'How close to pure pitch';
+    if (!st) $('guideText').textContent = tMode === 'climb' ? 'Done. Every note held in tune. Press Stop listening, or change the key to go again.' : 'Done. Tap a note below to retake it, or tap Start over.';
+    else if (cin.on) $('guideText').textContent = 'Count in...';
     else $('guideText').textContent = (listening ? 'Play the ' : 'Press Start listening, then play the ') + stepLabel(st) + ': ' + noteLabel(st);
     updateStepLine();
-    setClose(null);
+    if (tMode === 'climb') setHold(climb.hold / CLIMB_HOLD, false); else setClose(null);
     renderScaleRep();
   }
 
@@ -1441,14 +1535,14 @@ main { padding-bottom: 120px; }
     });
     Array.prototype.forEach.call($('tKey').children, function (o, i) { o.textContent = rootSpell(i, s.scale === 'minor'); });
     $('tOctVal').textContent = 'Octave ' + s.octave;
-    if (changed && tMode === 'scale') guideStart(); else if (tMode === 'scale') renderGuide(); else renderScaleRep();
+    if (changed && guided()) guideStart(); else if (guided()) renderGuide(); else renderScaleRep();
     renderTend();
     trRender();
   }
 
   function tModeUI() {
     segEnd();
-    $('tOpts').hidden = !(tMode === 'target' || tMode === 'scale' || tMode === 'beats');
+    $('tOpts').hidden = !(tMode === 'target' || guided() || tMode === 'beats');
     $('tDegRow').hidden = tMode !== 'target';
     $('scaleCard').hidden = tMode !== 'scale';
     $('tendCard').hidden = tMode !== 'mine';
@@ -1457,12 +1551,15 @@ main { padding-bottom: 120px; }
     $('meter').hidden = $('go').hidden = $('msg').hidden = tMode === 'beats';
     if (tMode === 'beats') { if (listening) tStop(); } else trStop();
     if (tMode !== 'scale') hearStop();
-    $('guideCard').hidden = tMode !== 'scale';
-    $('tDirRow').hidden = tMode !== 'scale';
+    $('guideCard').hidden = !guided();
+    $('tDirRow').hidden = !guided();
+    if (tMode !== 'climb') climbOff();
+    if (!guided()) cinStop();
     $('modeHint').textContent = HINTS[tMode];
     mark('modeSeg', tMode);
     tRenderOpts();
-    if (tMode === 'scale') guideStart();
+    if (guided()) guideStart();
+    if (listening && tMode === 'climb') beginCount();
     if (listening) tIdle();
   }
 
@@ -1478,8 +1575,10 @@ main { padding-bottom: 120px; }
       tHist.push(f);
       if (tHist.length > 5) tHist.shift();
       lastGood = ts;
-      if (tMode === 'mine') segFeed(f);
+      if (cin.on) { /* counting in */ }
+      else if (tMode === 'mine') segFeed(f);
       else if (tMode === 'scale') guideFeed(tHist.length >= 3 ? median(tHist) : f, ts);
+      else if (tMode === 'climb') climbFeed(tHist.length >= 3 ? median(tHist) : f, ts);
       // smooth in the pitch domain; snap straight to a new note when the pitch jumps
       var l = 1200 * Math.log(median(tHist) / s.a4) / Math.LN2;
       if (smooth === null || Math.abs(l - smooth) > 50) smooth = l;
@@ -1487,7 +1586,9 @@ main { padding-bottom: 120px; }
       tShow(s.a4 * Math.pow(2, smooth / 1200));
     } else {
       if (ts - lastGood > 250) segEnd();
-      if (tMode === 'scale') guideSilence(ts);
+      if (cin.on) { /* counting in */ }
+      else if (tMode === 'scale') guideSilence(ts);
+      else if (tMode === 'climb') climbSilence(ts);
       if (ts - lastGood > 700) {
         tHist = [];
         smooth = null;
@@ -1498,9 +1599,9 @@ main { padding-bottom: 120px; }
 
   function tShow(f) {
     var shift = instById[s.inst].shift, big, line1, tgt, cents, note = '', beat = '';
-    if (tMode === 'target' || tMode === 'scale') {
+    if (tMode === 'target' || guided()) {
       var root = baseFreq(), l = 1200 * Math.log(f / root) / Math.LN2, pcC = mod1200(l);
-      var degs = scaleDegs(), gst = tMode === 'scale' ? guideStep() : null;
+      var degs = scaleDegs(), gst = guided() ? guideStep() : null;
       var deg = tMode === 'target' ? tDeg : (gst ? gst.deg : nearestDeg(pcC)), d = degs[deg];
       var tc = justCents(d);
       cents = dd(pcC, tc);
@@ -1527,7 +1628,7 @@ main { padding-bottom: 120px; }
     $('tBeat').textContent = beat || ' ';
     $('cents').textContent = (rc > 0 ? '+' : rc < 0 ? MINUS : '') + Math.abs(rc).toFixed(1) + '¢';
     var state = Math.abs(cents) <= 5 ? 'good' : 'warn';
-    $('verdict').textContent = state === 'good' ? 'In tune' : (tMode === 'scale' && guideStep() && Math.abs(cents) > 60 ? 'Play ' + big : (cents > 0 ? 'Sharp' : 'Flat'));
+    $('verdict').textContent = state === 'good' ? 'In tune' : (guided() && guideStep() && Math.abs(cents) > 60 ? 'Play ' + big : (cents > 0 ? 'Sharp' : 'Flat'));
     $('tcap').textContent = 'Listening';
     var m = $('meter');
     m.classList.add('live');
@@ -1550,7 +1651,7 @@ main { padding-bottom: 120px; }
     $('cents').innerHTML = '&nbsp;';
     $('verdict').innerHTML = '&nbsp;';
     $('tcap').textContent = listening ? 'Play a note' : 'Not listening';
-    var gs = tMode === 'scale' ? guideStep() : null;
+    var gs = guided() ? guideStep() : null;
     if (gs && listening) {
       var gsh = instById[s.inst].shift;
       $('noteBig').textContent = spell(s.note, s.scale === 'minor', gsh, stepSemi(gs), gs.oct ? 7 : gs.deg);
@@ -1587,8 +1688,9 @@ main { padding-bottom: 120px; }
       tHist = []; lastGood = 0; smooth = null;
       $('go').setAttribute('aria-pressed', 'true');
       $('go').textContent = 'Stop listening';
-      tSay(s.playing ? 'The drone is playing and the microphone may pick it up. Use headphones or stop the drone.' : 'Listening. Play one note at a time.');
-      if (tMode === 'scale' && !guideStep()) guideStart(); else renderGuide();
+      tSay(tMode === 'climb' ? 'Use headphones so the microphone hears only you. Get ready for the count-in.' : s.playing ? 'The drone is playing and the microphone may pick it up. Use headphones or stop the drone.' : 'Listening. Play one note at a time.');
+      if (guided() && !guideStep()) guideStart(); else renderGuide();
+      if (guided()) beginCount();
       tIdle();
       tRaf = requestAnimationFrame(tLoop);
       if (navigator.wakeLock) {
@@ -1610,8 +1712,10 @@ main { padding-bottom: 120px; }
     audioMode('playback');
     if (tWake) { tWake.release().catch(function () {}); tWake = null; }
     segEnd();
+    cinStop(); climbOff();
     if (tMode === 'scale') guideFinish();
     guideReset();
+    climb.hold = 0; climb.last = 0; climb.out = 0;
     $('levelFill').style.width = '0%';
     $('go').setAttribute('aria-pressed', 'false');
     $('go').textContent = 'Start listening';
@@ -1684,7 +1788,7 @@ main { padding-bottom: 120px; }
     return ctx.resume();
   }
   function audioDone() {
-    stopTimer = setTimeout(function () { if (!s.playing && !trOn && hearing < 0 && ctx) ctx.suspend(); }, 500);
+    stopTimer = setTimeout(function () { if (!s.playing && !trOn && hearing < 0 && !cin.on && !climbV.length && ctx) ctx.suspend(); }, 500);
   }
   function toneOnce(freq, t0, dur, amp) {
     var o = ctx.createOscillator(), f = ctx.createBiquadFilter(), g = ctx.createGain(), lv = Math.max(0.05, s.vol) * 0.3 * (amp || 1);
@@ -2566,9 +2670,11 @@ main { padding-bottom: 120px; }
     $('sgPlay').textContent = 'Stop'; $('sgPlay').setAttribute('aria-pressed', 'true');
     rctx.resume().then(function () {
       if (!sg.running) return;
-      var L = sg.secs, seq = sgSeq(), t0 = rctx.currentTime + 0.3, bus = rctx.createGain(), total = seq.length * L;
+      var L = sg.secs, seq = sgSeq(), base = rctx.currentTime + 0.3, t0 = base + 4, bus = rctx.createGain(), total = seq.length * L;
       bus.connect(rmaster); rmaster.gain.value = rh.vol;
       sg.bus = bus; sg.t0 = t0; sg.seq = seq; sg.nodes = [];
+      var cg = rctx.createGain(); cg.gain.value = 0.6; cg.connect(bus);
+      for (var c = 0; c < 4; c++) rVoice('click', base + c, c === 0, 0, cg);
       sgTone(sgFreq(0), t0 - 0.02, t0 + total, 0.2, 0.4, 0.4, bus);
       seq.forEach(function (deg, k) { sgTone(sgFreq(deg), t0 + k * L - 0.02, t0 + (k + 1) * L, 0.5, 0.14, 0.16, bus); });
       if (sg.tick) {
