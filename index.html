@@ -122,6 +122,9 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
 .bar .tick.minor { top: 19px; height: 18px; opacity: .3; }
 .bar .tick { margin-left: -1px; }
 .target { color: var(--muted); }
+.level { height: 8px; border-radius: 4px; background: var(--line); overflow: hidden; }
+.level div { height: 100%; width: 0; background: var(--accent); transition: width .06s linear; }
+.state-good .level div { background: var(--good); }
 .bar .tick { position: absolute; top: 14px; width: 2px; height: 28px; background: var(--muted); opacity: .5; }
 .bar .needle { position: absolute; top: 4px; width: 6px; height: 48px; margin-left: -3px; border-radius: 3px; background: var(--ink); left: 50%; transition: left .09s linear, opacity .2s; opacity: .25; }
 .state-good .needle { background: var(--good); }
@@ -279,6 +282,16 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
     <div class="seg" id="rangeSeg" role="group" aria-label="Meter range">
       <button data-v="wide" aria-pressed="true">Wide &plusmn;50&cent;</button>
       <button data-v="fine" aria-pressed="false">Fine &plusmn;15&cent;</button>
+    </div>
+    <div class="row">
+      <div class="label">Sensitivity</div>
+      <div class="seg" id="sensSeg" role="group" aria-label="Microphone sensitivity">
+        <button data-v="normal" aria-pressed="false">Normal</button>
+        <button data-v="high" aria-pressed="true">High</button>
+        <button data-v="max" aria-pressed="false">Max</button>
+      </div>
+      <div class="level" aria-hidden="true"><div id="levelFill"></div></div>
+      <p class="hint">The bar shows how loud the microphone hears you. If it stays empty, raise Sensitivity or move closer.</p>
     </div>
   </div>
 
@@ -590,14 +603,16 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
   var tctx, tAnalyser, tStream, tBuf, tRaf = 0, tWake = null;
   var W = 2048;           // comparison window in samples
   var yd = new Float32Array(W);
-  var lastGood = 0, tHist = [], listening = false, smooth = null, tRange = 'wide';
+  var lastGood = 0, tHist = [], listening = false, smooth = null, tRange = 'wide', tSens = 'high', lastRms = 0;
+  var GATES = { normal: 0.002, high: 0.0007, max: 0.0002 };
   var RANGE = { wide: 50, fine: 15 };
 
   function yin(x, sr) {
     var rms = 0, i, tau;
     for (i = 0; i < 2 * W; i++) rms += x[i] * x[i];
     rms = Math.sqrt(rms / (2 * W));
-    if (rms < 0.002) return -1;   // quiet-room gate: about 5x more sensitive than before
+    lastRms = rms;
+    if (rms < GATES[tSens]) return -1;
 
     yd[0] = 1;
     var running = 0;
@@ -634,6 +649,7 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
     lastRun = ts;
     tAnalyser.getFloatTimeDomainData(tBuf);
     var f = yin(tBuf, tctx.sampleRate);
+    $('levelFill').style.width = Math.max(0, Math.min(100, (20 * Math.log(lastRms + 1e-9) / Math.LN10 + 80) / 60 * 100)) + '%';
     if (f > 0) {
       tHist.push(f);
       if (tHist.length > 5) tHist.shift();
@@ -678,6 +694,7 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
     $('needle').style.left = '50%';
     $('noteBig').textContent = '–';
     $('concert').innerHTML = '&nbsp;';
+    $('levelFill').style.width = '0%';
     $('tHz').innerHTML = '&nbsp;';
     $('tTarget').innerHTML = '&nbsp;';
     $('cents').innerHTML = '&nbsp;';
@@ -763,6 +780,11 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
     if (b) { tRange = b.dataset.v; drawScale(); }
   });
   drawScale();
+  $('sensSeg').addEventListener('click', function (e) {
+    var b = e.target.closest('button');
+    if (b) { tSens = b.dataset.v; mark('sensSeg', tSens); }
+  });
+  mark('sensSeg', tSens);
 
   function showTab() {
     $('panel-drone').hidden = s.tab !== 'drone';
