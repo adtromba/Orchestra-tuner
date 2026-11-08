@@ -487,6 +487,25 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
   function inst() { return instById[s.inst]; }
   function pc(n) { return ((n % 12) + 12) % 12; }
   function name(n) { return NAMES[pc(n)]; }
+
+  // Key-aware spelling: each scale degree keeps its own letter (A B C# D E F# G#, not A B Db D E Gb Ab).
+  var LETTERS = 'CDEFGAB', NATURAL = [0, 2, 4, 5, 7, 9, 11];
+  var MAJOR_ROOTS = ['C', 'D♭', 'D', 'E♭', 'E', 'F', 'F♯', 'G', 'A♭', 'A', 'B♭', 'B'];
+  var MINOR_ROOTS = ['C', 'C♯', 'D', 'E♭', 'E', 'F', 'F♯', 'G', 'G♯', 'A', 'B♭', 'B'];
+  var CHORD_STEP = { 0: 0, 3: 2, 4: 2, 7: 4 };
+  function rootSpell(p, minor) { return (minor ? MINOR_ROOTS : MAJOR_ROOTS)[pc(p)]; }
+  // rootPc: the key's root (concert). shift: transposition to the written key. semi: semitones above the root.
+  // step: how many letter names above the root letter (0 root, 1 second, 2 third ...).
+  function spell(rootPc, minor, shift, semi, step) {
+    var wpc = pc(rootPc + shift), rn = rootSpell(wpc, minor);
+    var li = (LETTERS.indexOf(rn.charAt(0)) + step) % 7, target = pc(wpc + semi);
+    var diff = pc(target - NATURAL[li]);
+    if (diff > 6) diff -= 12;
+    if (diff === 0) return LETTERS.charAt(li);
+    if (diff === 1) return LETTERS.charAt(li) + '♯';
+    if (diff === -1) return LETTERS.charAt(li) + '♭';
+    return NAMES[target];
+  }
   function baseFreq() { return s.a4 * Math.pow(2, (12 * (s.octave + 1) + s.note - 69) / 12); }
   function ratio(semi, nd) { return s.tuning === 'just' ? nd[0] / nd[1] : Math.pow(2, semi / 12); }
   function cents(semi, nd) { return 1200 * Math.log(nd[0] / nd[1]) / Math.LN2 - 100 * semi; }
@@ -597,7 +616,7 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
     var you = $('you');
     if (shift !== 0) {
       you.hidden = false;
-      you.innerHTML = 'You play: <span>' + ps.map(function (p) { return name(s.note + p[0] + shift); }).join(' · ') + '</span>';
+      you.innerHTML = 'You play: <span>' + ps.map(function (p) { return spell(s.note, s.sound === 'minor', shift, p[0], CHORD_STEP[p[0]]); }).join(' · ') + '</span>';
     } else { you.hidden = true; }
 
     var chips = $('chips');
@@ -607,7 +626,7 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
       ps.forEach(function (p) {
         var c = cents(p[0], p[1]);
         var el = document.createElement('span');
-        el.textContent = name(s.note + p[0]) + (s.tuning === 'just' && Math.abs(c) >= 0.5 ? ' ' + fmtCents(c) : '');
+        el.textContent = spell(s.note, s.sound === 'minor', 0, p[0], CHORD_STEP[p[0]]) + (s.tuning === 'just' && Math.abs(c) >= 0.5 ? ' ' + fmtCents(c) : '');
         chips.appendChild(el);
       });
     } else { chips.hidden = true; }
@@ -656,7 +675,7 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
     var sc = SCALES[s.scale];
     Array.prototype.forEach.call($('degrees').children, function (b, i) {
       var d = sc[i], c = cents(d[0], d[1]);
-      b.children[0].textContent = name(s.note + d[0] + shift);
+      b.children[0].textContent = spell(s.note, s.scale === 'minor', shift, d[0], i);
       b.children[1].textContent = DEG[i] + (s.tuning === 'just' && Math.abs(c) >= 0.5 ? ' ' + fmtCents(c) : '');
       b.setAttribute('aria-pressed', s.probe === i ? 'true' : 'false');
     });
@@ -845,7 +864,7 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
         last = a[n - 1];
         latest.push({ i: i, t: last });
       }
-      html += repRow(name(s.note + d[0] + shift), DEG[i] + (n ? ' ±' + Math.round(sdA) : ''), setA, n, i, !!st && st.deg === i, landA, last);
+      html += repRow(spell(s.note, s.scale === 'minor', shift, d[0], i), DEG[i] + (n ? ' ±' + Math.round(sdA) : ''), setA, n, i, !!st && st.deg === i, landA, last);
     });
     $('scaleRows').innerHTML = html;
     if (latest.length >= 2) {
@@ -894,10 +913,14 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
   function stepLabel(st) { return st.oct ? 'Octave' : DEG[st.deg]; }
   function stepSemi(st) { return scaleDegs()[st.deg][0] + (st.oct ? 12 : 0); }
   function guideStep() { return guide.steps[guide.i] || null; }
-  function noteLabel(semi) {
+  function noteLabel(st) {
+    var semi = stepSemi(st), step = st.oct ? 7 : st.deg, minor = s.scale === 'minor';
     var midi = 12 * (s.octave + 1) + s.note + semi, shift = instById[s.inst].shift;
-    var sound = name(midi) + (Math.floor(midi / 12) - 1);
-    return shift === 0 ? sound : name(midi + shift) + ' (sounds ' + sound + ')';
+    var cn = spell(s.note, minor, 0, semi, step), oct = Math.floor(midi / 12) - 1;
+    if (cn.charAt(0) === 'C' && pc(midi) === 11) oct++;
+    if (cn.charAt(0) === 'B' && pc(midi) === 0) oct--;
+    var sound = cn + oct;
+    return shift === 0 ? sound : spell(s.note, minor, shift, semi, step) + ' (sounds ' + sound + ')';
   }
   function guideReset() { guide.att = null; guide.cand = []; }
   function guideStart() {
@@ -928,7 +951,7 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
       $('guideText').textContent = 'Done. Tap a note below to retake it, or tap Start over.';
     } else {
       $('guideStep').textContent = (n > 1 ? 'Step ' + (guide.i + 1) + ' of ' + n : 'Retake') + (listening ? ' \u00B7 hold the note and tune it in, then play the next' : '');
-      $('guideText').textContent = (listening ? 'Play the ' : 'Press Start listening, then play the ') + stepLabel(st) + ': ' + noteLabel(stepSemi(st));
+      $('guideText').textContent = (listening ? 'Play the ' : 'Press Start listening, then play the ') + stepLabel(st) + ': ' + noteLabel(st);
     }
     $('guideNext').hidden = !st || n < 2;
     setClose(null);
@@ -990,7 +1013,7 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
     (scaleRep[st.deg] = scaleRep[st.deg] || []).push({ land: land, settled: settled, sd: sd, lock: lock, trace: trace, dur: dur });
     guide.lastCap = median(fr.slice(-Math.min(15, n)).map(function (x) { return x.a; }));
     guide.i++;
-    var nm = name(s.note + scaleDegs()[st.deg][0] + shift);
+    var nm = spell(s.note, s.scale === 'minor', shift, scaleDegs()[st.deg][0], st.deg);
     setCap(nm + ': landed ' + fmtCents(land) + ', ' + (lock === null ? 'ended at ' : 'settled ') + fmtCents(settled) +
            (lock === null ? ', never locked within 5¢' : ', locked in ' + lock.toFixed(1) + ' s'),
            lock !== null && Math.abs(settled) <= LOCK_TOL ? 'good' : 'warn');
@@ -1039,10 +1062,11 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
     if (tendInst !== s.inst) { tendInst = s.inst; loadTend(); }
     Array.prototype.forEach.call($('tDegs').children, function (b, i) {
       var d = scaleDegs()[i];
-      b.children[0].textContent = name(s.note + d[0] + shift);
+      b.children[0].textContent = spell(s.note, s.scale === 'minor', shift, d[0], i);
       b.children[1].textContent = DEG[i];
       b.setAttribute('aria-pressed', i === tDeg ? 'true' : 'false');
     });
+    Array.prototype.forEach.call($('tKey').children, function (o, i) { o.textContent = rootSpell(i, s.scale === 'minor'); });
     $('tOctVal').textContent = 'Octave ' + s.octave;
     if (changed && tMode === 'scale') guideStart(); else if (tMode === 'scale') renderGuide(); else renderScaleRep();
     renderTend();
@@ -1107,8 +1131,8 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
       var tc = justCents(d);
       cents = dd(pcC, tc);
       tgt = root * Math.pow(2, (tc + 1200 * Math.round((l - tc) / 1200)) / 1200);
-      big = name(s.note + d[0] + shift);
-      line1 = (gst ? stepLabel(gst) : DEG[deg]) + (shift !== 0 ? ' · sounds ' + name(s.note + d[0]) : '');
+      big = spell(s.note, s.scale === 'minor', shift, d[0], deg);
+      line1 = (gst ? stepLabel(gst) : DEG[deg]) + (shift !== 0 ? ' · sounds ' + spell(s.note, s.scale === 'minor', 0, d[0], deg) : '');
       var off = tc - 100 * d[0];
       var den = d[1][1], beats = den * Math.abs(f - tgt);
       beat = den > 5 ? '' : (beats < 0.3 ? 'No beating against the drone' : 'Beating against the drone: about ' + beats.toFixed(1) + ' per second');
@@ -1155,7 +1179,7 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
     var gs = tMode === 'scale' ? guideStep() : null;
     if (gs && listening) {
       var gsh = instById[s.inst].shift;
-      $('noteBig').textContent = name(s.note + stepSemi(gs) + gsh);
+      $('noteBig').textContent = spell(s.note, s.scale === 'minor', gsh, stepSemi(gs), gs.oct ? 7 : gs.deg);
       $('concert').textContent = stepLabel(gs);
       $('tcap').textContent = 'Play this note';
     }
