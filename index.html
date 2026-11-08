@@ -244,6 +244,26 @@ svg .off { opacity: .3; }
 .dock { position: sticky; bottom: 12px; z-index: 5; display: flex; align-items: center; gap: 12px; padding: 10px; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 6px 20px rgba(0,0,0,.2); }
 .dock .play { flex: 1; min-height: 56px; }
 .dock-msg { flex: 0 0 112px; font-size: 13px; line-height: 1.25; color: var(--muted); }
+.sg-pick { display: flex; gap: 8px; align-items: center; }
+.sg-pick select { flex: 1; min-width: 0; }
+.sg-pick .stepper { flex: none; width: 170px; gap: 4px; }
+.sg-pick .stepper button { width: 44px; }
+.sg-pick .stepper span { font-size: 14px; white-space: nowrap; }
+.sgshow { text-align: center; padding: 6px 0 2px; }
+.sgbig { font: 500 56px/1 var(--font-display); }
+.sgbig sub { font-size: 20px; }
+.sgdeg { color: var(--muted); font-size: 14px; min-height: 20px; margin-top: 6px; }
+.sgbeats { display: flex; justify-content: center; gap: 8px; margin-top: 10px; min-height: 14px; flex-wrap: wrap; }
+.sgbeats i { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--line); }
+.sgbeats i.on { background: var(--l0); border-color: var(--l0); }
+.sgchips { display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px; }
+.sgchips span { text-align: center; font-size: 12px; padding: 6px 0; border-radius: 8px; border: 1px solid var(--line); line-height: 1.25; color: var(--muted); }
+.sgchips span b { display: block; font-size: 15px; font-weight: 600; color: var(--ink); }
+.sgchips span.on { background: var(--ink); border-color: var(--ink); color: var(--bg); }
+.sgchips span.on b { color: var(--bg); }
+.sgopt summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; font-weight: 500; }
+.sgopt .row { margin-top: 8px; }
+#sgPlay { width: 100%; flex: none; }
 </style>
 </head>
 <body>
@@ -524,7 +544,7 @@ svg .off { opacity: .3; }
     <button class="clear" id="tendClear">Clear saved results</button>
   </section>
 
-  <p class="hint" id="buildTag" style="text-align:center;opacity:.6">Version: Nov 8d, simpler Rhythm tab with counting grid</p>
+  <p class="hint" id="buildTag" style="text-align:center;opacity:.6">Version: Nov 8e, Sing the scale added to Rhythm tab</p>
   <p class="msg" id="msg">Tap Start, allow the microphone, then play one note at a time. The reading is in cents: 100 cents is one half step.</p>
 
   </div>
@@ -615,6 +635,63 @@ svg .off { opacity: .3; }
       <button class="clear" id="rhReset">Start over</button>
     </div>
   </details>
+
+  <section class="card" id="sgCard">
+    <div class="label">Sing the scale</div>
+    <p class="hint">A soft root plays underneath. Each note lasts <span id="sgLen">4</span> seconds at 60 beats a minute, so you have time to match it.</p>
+    <div class="sg-pick">
+      <select id="sgRoot" aria-label="Root note"></select>
+      <div class="stepper">
+        <button id="sgOctDown" aria-label="Lower octave">&minus;</button>
+        <span id="sgOctVal">Octave 3</span>
+        <button id="sgOctUp" aria-label="Higher octave">+</button>
+      </div>
+    </div>
+    <div class="seg" id="sgScale" role="group" aria-label="Scale">
+      <button data-v="major" aria-pressed="true">Major</button>
+      <button data-v="minor" aria-pressed="false">Minor</button>
+    </div>
+    <div class="sgshow">
+      <div class="sgbig" id="sgBig">A</div>
+      <div class="sgdeg" id="sgDeg">Press Play, then sing along</div>
+      <div class="sgbeats" id="sgBeats"></div>
+    </div>
+    <div class="sgchips" id="sgChips"></div>
+    <button class="play" id="sgPlay" aria-pressed="false">Play the scale</button>
+    <details class="sgopt">
+      <summary>Options</summary>
+      <div class="row">
+        <div class="label">Tuning</div>
+        <div class="seg" id="sgTuning" role="group" aria-label="Tuning">
+          <button data-v="just" aria-pressed="true">Pure</button>
+          <button data-v="equal" aria-pressed="false">Piano</button>
+        </div>
+        <p class="hint">Pure notes sit exactly in tune with the root. Piano matches a piano keyboard.</p>
+      </div>
+      <div class="row">
+        <div class="label">Seconds per note</div>
+        <div class="stepper">
+          <button id="sgSecDown" aria-label="Shorter notes">&minus;</button>
+          <span id="sgSecVal">4</span>
+          <button id="sgSecUp" aria-label="Longer notes">+</button>
+        </div>
+      </div>
+      <div class="row">
+        <div class="label">Direction</div>
+        <div class="seg" id="sgDir" role="group" aria-label="Direction">
+          <button data-v="up" aria-pressed="true">Up</button>
+          <button data-v="both" aria-pressed="false">Up and down</button>
+        </div>
+      </div>
+      <div class="row">
+        <div class="label">Tick on each beat</div>
+        <div class="seg" id="sgTick" role="group" aria-label="Beat tick">
+          <button data-v="off" aria-pressed="true">Off</button>
+          <button data-v="on" aria-pressed="false">On</button>
+        </div>
+      </div>
+    </details>
+  </section>
 
   <p class="hint" id="buildTag2" style="text-align:center;opacity:.6"></p>
 
@@ -1891,7 +1968,7 @@ svg .off { opacity: .3; }
       var b = rctx.createGain();
       b.connect(rmaster); rmaster.gain.value = rh.vol;
       rVoice(snd, rctx.currentTime + 0.02, true, 0, b);
-      setTimeout(function () { try { b.disconnect(); } catch (e) {} if (!rh.running && rctx.state === 'running') rctx.suspend(); }, 900);
+      setTimeout(function () { try { b.disconnect(); } catch (e) {} if (!rh.running && !sg.running && rctx.state === 'running') rctx.suspend(); }, 900);
     });
   }
 
@@ -1943,6 +2020,7 @@ svg .off { opacity: .3; }
 
   function rStart() {
     if (rh.running) return;
+    sgStop();
     if (!rctx) rBuild();
     rh.running = true; rh.live = false;
     rbus = rctx.createGain();
@@ -1971,7 +2049,7 @@ svg .off { opacity: .3; }
       b.gain.setTargetAtTime(0, rctx.currentTime, 0.01);
       setTimeout(function () { try { b.disconnect(); } catch (e) {} }, 300);
     }
-    setTimeout(function () { if (!rh.running && rctx && rctx.state === 'running') rctx.suspend(); }, 500);
+    setTimeout(function () { if (!rh.running && !sg.running && rctx && rctx.state === 'running') rctx.suspend(); }, 500);
     if (rWake) { try { rWake.release(); } catch (e) {} rWake = null; }
     rLastStatus = '';
     rUI(); rDraw();
@@ -2320,6 +2398,151 @@ svg .off { opacity: .3; }
     rUI(); rDraw();
   })();
 
+  // ---------- sing the scale: slow scale over a soft root ----------
+  var SKEY = 'orchestra-sing';
+  var sg = { note: s.note, octave: 3, scale: 'major', tuning: s.tuning === 'equal' ? 'equal' : 'just', secs: 4, dir: 'up', tick: false,
+             running: false, t0: 0, seq: [], nodes: [], bus: null, raf: 0, last: '' };
+  var rOboe = null;
+  try {
+    var sd = JSON.parse(localStorage.getItem(SKEY) || 'null');
+    if (sd) {
+      if (sd.note >= 0 && sd.note <= 11) sg.note = sd.note | 0;
+      if (sd.octave >= 1 && sd.octave <= 5) sg.octave = sd.octave | 0;
+      if (sd.scale === 'minor') sg.scale = 'minor';
+      if (sd.tuning === 'equal' || sd.tuning === 'just') sg.tuning = sd.tuning;
+      if (sd.secs >= 2 && sd.secs <= 10) sg.secs = sd.secs | 0;
+      if (sd.dir === 'both') sg.dir = 'both';
+      sg.tick = sd.tick === true;
+    }
+  } catch (e) {}
+  function sgSave() {
+    try { localStorage.setItem(SKEY, JSON.stringify({ note: sg.note, octave: sg.octave, scale: sg.scale, tuning: sg.tuning, secs: sg.secs, dir: sg.dir, tick: sg.tick })); } catch (e) {}
+  }
+  function sgSeq() { var a = [0, 1, 2, 3, 4, 5, 6, 7]; return sg.dir === 'both' ? a.concat([6, 5, 4, 3, 2, 1, 0]) : a; }
+  function sgFreq(i) {
+    var d = SCALES[sg.scale][i], f0 = s.a4 * Math.pow(2, (12 * (sg.octave + 1) + sg.note - 69) / 12);
+    return f0 * (sg.tuning === 'just' ? d[1][0] / d[1][1] : Math.pow(2, d[0] / 12));
+  }
+  function sgName(i) {
+    var d = SCALES[sg.scale][i], midi = 12 * (sg.octave + 1) + sg.note + d[0];
+    return spell(sg.note, sg.scale === 'minor', 0, d[0], i) + '<sub>' + (Math.floor(midi / 12) - 1) + '</sub>';
+  }
+  function sgTone(f, t, tEnd, peak, rise, fall, dest) {
+    var o = rctx.createOscillator(), lp = rctx.createBiquadFilter(), g = rctx.createGain();
+    o.setPeriodicWave(rOboe);
+    o.frequency.setValueAtTime(f, t);
+    lp.type = 'lowpass'; lp.frequency.value = Math.min(f * 8, 6000);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(peak, t + rise);
+    g.gain.setValueAtTime(peak, tEnd - fall);
+    g.gain.linearRampToValueAtTime(0.0001, tEnd + 0.04);
+    o.connect(lp); lp.connect(g); g.connect(dest);
+    o.start(t); o.stop(tEnd + 0.1);
+    sg.nodes.push(o);
+  }
+  function sgStart() {
+    if (sg.running) return;
+    rStop();
+    if (!rctx) rBuild();
+    if (!rOboe) {
+      var imag = new Float32Array([0, 0.8, 1, 0.85, 0.5, 0.35, 0.25, 0.12, 0.08, 0.05]);
+      rOboe = rctx.createPeriodicWave(new Float32Array(imag.length), imag);
+    }
+    sg.running = true; sg.last = '';
+    $('sgPlay').textContent = 'Stop'; $('sgPlay').setAttribute('aria-pressed', 'true');
+    rctx.resume().then(function () {
+      if (!sg.running) return;
+      var L = sg.secs, seq = sgSeq(), t0 = rctx.currentTime + 0.3, bus = rctx.createGain(), total = seq.length * L;
+      bus.connect(rmaster); rmaster.gain.value = rh.vol;
+      sg.bus = bus; sg.t0 = t0; sg.seq = seq; sg.nodes = [];
+      sgTone(sgFreq(0), t0 - 0.02, t0 + total, 0.2, 0.4, 0.4, bus);
+      seq.forEach(function (deg, k) { sgTone(sgFreq(deg), t0 + k * L - 0.02, t0 + (k + 1) * L, 0.5, 0.14, 0.16, bus); });
+      if (sg.tick) {
+        var tg = rctx.createGain(); tg.gain.value = 0.45; tg.connect(bus);
+        for (var b = 0; b < total; b++) rVoice('click', t0 + b, b % L === 0, 0, tg);
+      }
+      sg.raf = requestAnimationFrame(sgFrame);
+    });
+  }
+  function sgStop() {
+    if (!sg.running) return;
+    sg.running = false;
+    cancelAnimationFrame(sg.raf);
+    if (sg.bus) {
+      var b = sg.bus, nodes = sg.nodes, now = rctx.currentTime;
+      sg.bus = null; sg.nodes = [];
+      b.gain.setTargetAtTime(0, now, 0.03);
+      nodes.forEach(function (o) { try { o.stop(now + 0.25); } catch (e) {} });
+      setTimeout(function () { try { b.disconnect(); } catch (e) {} }, 400);
+    }
+    setTimeout(function () { if (!rh.running && !sg.running && rctx && rctx.state === 'running') rctx.suspend(); }, 600);
+    $('sgPlay').textContent = 'Play the scale'; $('sgPlay').setAttribute('aria-pressed', 'false');
+    sgShow(-1, 0);
+  }
+  function sgFrame() {
+    if (!sg.running) return;
+    sg.raf = requestAnimationFrame(sgFrame);
+    var td = rctx.currentTime - (rctx.outputLatency || rctx.baseLatency || 0), ph = (td - sg.t0) / sg.secs;
+    if (ph >= sg.seq.length) { sgStop(); return; }
+    if (ph < 0) { sgShow(-2, 0); return; }
+    var k = Math.floor(ph), beat = Math.floor((ph - k) * sg.secs);
+    sgShow(k, beat);
+  }
+  // k: position in the sequence (-1 idle, -2 getting ready)
+  function sgShow(k, beat) {
+    var key = k + ':' + beat;
+    if (key === sg.last) return;
+    sg.last = key;
+    var deg = k >= 0 ? sg.seq[k] : 0, big = $('sgBig'), info = $('sgDeg'), chips = $('sgChips').children, i;
+    if (k < 0) {
+      big.innerHTML = sgName(0);
+      info.textContent = k === -2 ? 'Get ready...' : 'Press Play, then sing along';
+    } else {
+      var d = SCALES[sg.scale][deg], c = cents(d[0], d[1]);
+      big.innerHTML = sgName(deg);
+      info.textContent = DEG[deg] + (sg.tuning === 'just' && Math.abs(c) >= 0.5 ? ' · ' + fmtCents(c) + ' from piano' : '');
+    }
+    for (i = 0; i < chips.length; i++) chips[i].classList.toggle('on', k >= 0 && i === deg);
+    var dots = $('sgBeats').children;
+    for (i = 0; i < dots.length; i++) dots[i].classList.toggle('on', k >= 0 && i <= beat);
+  }
+  function sgUI() {
+    var minor = sg.scale === 'minor', i;
+    $('sgRoot').innerHTML = NAMES.map(function (n, p) { return '<option value="' + p + '"' + (p === sg.note ? ' selected' : '') + '>' + rootSpell(p, minor) + '</option>'; }).join('') ;
+    $('sgOctVal').textContent = 'Octave ' + sg.octave;
+    $('sgLen').textContent = sg.secs; $('sgSecVal').textContent = sg.secs;
+    mark('sgScale', sg.scale); mark('sgTuning', sg.tuning); mark('sgDir', sg.dir); mark('sgTick', sg.tick ? 'on' : 'off');
+    var chips = '';
+    for (i = 0; i < 8; i++) chips += '<span><b>' + spell(sg.note, minor, 0, SCALES[sg.scale][i][0], i) + '</b>' + (i + 1) + '</span>';
+    $('sgChips').innerHTML = chips;
+    var dots = '';
+    for (i = 0; i < sg.secs; i++) dots += '<i></i>';
+    $('sgBeats').innerHTML = dots;
+    sg.last = '';
+    sgShow(sg.running ? 0 : -1, 0);
+  }
+  (function sgInit() {
+    function changed() { if (sg.running) sgStop(); sgUI(); sgSave(); }
+    $('sgPlay').addEventListener('click', function () { if (sg.running) sgStop(); else sgStart(); });
+    $('sgRoot').addEventListener('change', function (e) { sg.note = +e.target.value; changed(); });
+    $('sgOctDown').addEventListener('click', function () { sg.octave = rclamp(sg.octave - 1, 1, 5); changed(); });
+    $('sgOctUp').addEventListener('click', function () { sg.octave = rclamp(sg.octave + 1, 1, 5); changed(); });
+    $('sgSecDown').addEventListener('click', function () { sg.secs = rclamp(sg.secs - 1, 2, 10); changed(); });
+    $('sgSecUp').addEventListener('click', function () { sg.secs = rclamp(sg.secs + 1, 2, 10); changed(); });
+    [['sgScale', 'scale'], ['sgTuning', 'tuning'], ['sgDir', 'dir']].forEach(function (x) {
+      $(x[0]).addEventListener('click', function (e) {
+        var b = e.target.closest('button');
+        if (b) { sg[x[1]] = b.dataset.v; changed(); }
+      });
+    });
+    $('sgTick').addEventListener('click', function (e) {
+      var b = e.target.closest('button');
+      if (b) { sg.tick = b.dataset.v === 'on'; changed(); }
+    });
+    sgUI();
+  })();
+
+
   function showTab() {
     $('panel-drone').hidden = s.tab !== 'drone';
     $('panel-tuner').hidden = s.tab !== 'tuner';
@@ -2330,7 +2553,7 @@ svg .off { opacity: .3; }
   $('tabSeg').addEventListener('click', function (e) {
     var b = e.target.closest('button');
     if (!b) return;
-    if (b.dataset.v !== 'rhythm') rStop();
+    if (b.dataset.v !== 'rhythm') { rStop(); sgStop(); }
     if (b.dataset.v !== 'tuner') { trStop(); hearStop(); }
     if (listening && b.dataset.v !== 'tuner') tStop();
     s.tab = b.dataset.v; showTab(); save();
