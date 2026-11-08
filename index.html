@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Orchestra Tuner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  /* Layout: one centered column. Setup, big note and cents, meter, start button. */
+  --bg: #eef0ed;
+  --surface: #ffffff;
+  --ink: #17211e;
+  --muted: #5d6b66;
+  --line: #d3d9d5;
+  --accent: #0f6b5c;
+  --accent-ink: #ffffff;
+  --good: #1f8a4c;
+  --warn: #b45f06;
+  --font-display: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  --font-body: "Instrument Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1614; --surface: #17211e; --ink: #e6ede9; --muted: #8fa19a;
+    --line: #2b3a35; --accent: #4fc2a9; --accent-ink: #07211b;
+    --good: #5bd48a; --warn: #f0a04b;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1614; --surface: #17211e; --ink: #e6ede9; --muted: #8fa19a;
+  --line: #2b3a35; --accent: #4fc2a9; --accent-ink: #07211b;
+  --good: #5bd48a; --warn: #f0a04b;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 16px; line-height: 1.4; -webkit-tap-highlight-color: transparent; }
+main { max-width: 480px; margin: 0 auto; padding: 20px 16px 48px; display: flex; flex-direction: column; gap: 16px; }
+h1 { font-size: 13px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0; }
+button:focus-visible, select:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 16px; display: flex; flex-direction: column; gap: 16px; }
+.row { display: flex; flex-direction: column; gap: 8px; }
+.label { font-size: 14px; font-weight: 600; }
+select { width: 100%; min-height: 48px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); color: var(--ink); font: 500 16px var(--font-body); padding: 0 12px; }
+.seg { display: flex; gap: 6px; }
+.seg button { flex: 1 1 0; min-height: 44px; border: 1px solid var(--line); border-radius: 10px; background: transparent; color: var(--ink); font: 500 15px var(--font-body); cursor: pointer; padding: 0 4px; }
+.seg button[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--bg); }
+
+.meter { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 18px; }
+.cap { font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.note { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.note .big { font-family: var(--font-display); font-size: 88px; line-height: 1; font-weight: 500; min-width: 1.2em; }
+.note .side { text-align: right; font-family: var(--font-display); color: var(--muted); font-size: 16px; font-variant-numeric: tabular-nums; }
+.cents { text-align: center; font-family: var(--font-display); font-size: 44px; font-weight: 500; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.verdict { text-align: center; font-size: 18px; font-weight: 600; min-height: 26px; color: var(--muted); }
+.state-good .cents, .state-good .verdict { color: var(--good); }
+.state-warn .cents, .state-warn .verdict { color: var(--warn); }
+.bar { position: relative; height: 56px; }
+.bar .track { position: absolute; left: 0; right: 0; top: 24px; height: 8px; border-radius: 4px; background: var(--line); }
+.bar .zone { position: absolute; top: 24px; height: 8px; left: 45%; width: 10%; background: var(--good); opacity: .45; }
+.bar .tick { position: absolute; top: 14px; width: 2px; height: 28px; background: var(--muted); opacity: .5; }
+.bar .needle { position: absolute; top: 4px; width: 6px; height: 48px; margin-left: -3px; border-radius: 3px; background: var(--ink); left: 50%; transition: left .09s linear, opacity .2s; opacity: .25; }
+.state-good .needle { background: var(--good); }
+.state-warn .needle { background: var(--warn); }
+.live .needle { opacity: 1; }
+.scale { display: flex; justify-content: space-between; font-family: var(--font-display); font-size: 12px; color: var(--muted); margin-top: -8px; }
+.go { width: 100%; min-height: 56px; border: 0; border-radius: 12px; background: var(--accent); color: var(--accent-ink); font: 600 17px var(--font-body); cursor: pointer; }
+.go[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+.msg { margin: 0; font-size: 14px; color: var(--muted); }
+.msg.err { color: var(--warn); font-weight: 600; }
+@media (prefers-reduced-motion: reduce) { .bar .needle { transition: none; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>Orchestra Tuner</h1>
+
+  <section class="card">
+    <div class="row">
+      <label class="label" for="inst">My instrument</label>
+      <select id="inst"></select>
+    </div>
+    <div class="row">
+      <div class="label">Orchestra A</div>
+      <div class="seg" id="refSeg" role="group" aria-label="Orchestra A in hertz">
+        <button data-v="415" aria-pressed="false">415</button>
+        <button data-v="440" aria-pressed="true">440</button>
+        <button data-v="442" aria-pressed="false">442</button>
+        <button data-v="443" aria-pressed="false">443</button>
+      </div>
+    </div>
+  </section>
+
+  <div class="meter" id="meter">
+    <div class="cap" id="cap">Play a note</div>
+    <div class="note">
+      <div class="big" id="noteBig">&ndash;</div>
+      <div class="side"><div id="concert">&nbsp;</div><div id="hz">&nbsp;</div></div>
+    </div>
+    <div>
+      <div class="cents" id="cents">&nbsp;</div>
+      <div class="verdict" id="verdict">&nbsp;</div>
+    </div>
+    <div>
+      <div class="bar" id="bar">
+        <div class="track"></div>
+        <div class="zone"></div>
+        <div class="tick" style="left:0"></div>
+        <div class="tick" style="left:50%;margin-left:-1px;opacity:.9"></div>
+        <div class="tick" style="right:0"></div>
+        <div class="needle" id="needle"></div>
+      </div>
+      <div class="scale"><span>&minus;50&cent; flat</span><span>sharp +50&cent;</span></div>
+    </div>
+  </div>
+
+  <button class="go" id="go" aria-pressed="false">Start listening</button>
+  <p class="msg" id="msg">Tap Start, allow the microphone, then play one note at a time. The reading is in cents: 100 cents is one half step.</p>
+</main>
+
+<script>
+(function () {
+  var NAMES = ['C','D♭','D','E♭','E','F','F♯','G','A♭','A','B♭','B'];
+  var MINUS = '−';
+  var INST = [
+    { id: 'c',    name: 'Concert pitch (C)',         shift: 0 },
+    { id: 'vn',   name: 'Violin',                    shift: 0 },
+    { id: 'va',   name: 'Viola',                     shift: 0 },
+    { id: 'vc',   name: 'Cello',                     shift: 0 },
+    { id: 'db',   name: 'Double bass',               shift: 0 },
+    { id: 'bbcl', name: 'B♭ Clarinet / Trumpet', shift: 2 },
+    { id: 'acl',  name: 'A Clarinet',                shift: 3 },
+    { id: 'ebcl', name: 'E♭ Clarinet',           shift: 9 },
+    { id: 'bbs',  name: 'Bass Clarinet / Tenor Sax', shift: 2 },
+    { id: 'eas',  name: 'Alto / Baritone Sax',       shift: 9 },
+    { id: 'f',    name: 'F Horn / English Horn',     shift: 7 }
+  ];
+  var GROUPS = [
+    ['General', ['c']],
+    ['Strings', ['vn','va','vc','db']],
+    ['Transposing winds and brass', ['bbcl','acl','ebcl','bbs','eas','f']]
+  ];
+  var byId = {};
+  INST.forEach(function (i) { byId[i.id] = i; });
+
+  var s = { inst: 'c', a4: 440, on: false };
+  try {
+    var sv = JSON.parse(localStorage.getItem('orchestra-tuner') || '{}');
+    if (sv.inst && byId[sv.inst]) s.inst = sv.inst;
+    if ([415, 440, 442, 443].indexOf(sv.a4) >= 0) s.a4 = sv.a4;
+  } catch (e) {}
+  function save() { try { localStorage.setItem('orchestra-tuner', JSON.stringify({ inst: s.inst, a4: s.a4 })); } catch (e) {} }
+
+  function $(id) { return document.getElementById(id); }
+  function pc(n) { return ((n % 12) + 12) % 12; }
+
+  GROUPS.forEach(function (g) {
+    var og = document.createElement('optgroup');
+    og.label = g[0];
+    g[1].forEach(function (id) {
+      var o = document.createElement('option');
+      o.value = id; o.textContent = byId[id].name;
+      og.appendChild(o);
+    });
+    $('inst').appendChild(og);
+  });
+  $('inst').value = s.inst;
+
+  function markRef() {
+    Array.prototype.forEach.call($('refSeg').children, function (b) {
+      b.setAttribute('aria-pressed', +b.dataset.v === s.a4 ? 'true' : 'false');
+    });
+  }
+  markRef();
+  $('refSeg').addEventListener('click', function (e) {
+    var b = e.target.closest('button');
+    if (b) { s.a4 = +b.dataset.v; markRef(); save(); }
+  });
+  $('inst').addEventListener('change', function (e) { s.inst = e.target.value; save(); });
+
+  // ---------- pitch detection (YIN) ----------
+  var ctx, analyser, stream, buf, rafId = 0, wake = null;
+  var W = 2048;           // comparison window in samples
+  var d = new Float32Array(W);
+  var lastGood = 0, history = [];
+
+  function yin(x, sr) {
+    var rms = 0, i, tau;
+    for (i = 0; i < 2 * W; i++) rms += x[i] * x[i];
+    rms = Math.sqrt(rms / (2 * W));
+    if (rms < 0.01) return -1;
+
+    d[0] = 1;
+    var running = 0;
+    for (tau = 1; tau < W; tau++) {
+      var sum = 0;
+      for (i = 0; i < W; i++) { var diff = x[i] - x[i + tau]; sum += diff * diff; }
+      running += sum;
+      d[tau] = running === 0 ? 1 : sum * tau / running;
+    }
+    var minTau = Math.floor(sr / 2200);   // ignore pitches above about 2200 Hz
+    var found = -1;
+    for (tau = Math.max(2, minTau); tau < W - 1; tau++) {
+      if (d[tau] < 0.15) {
+        while (tau + 1 < W - 1 && d[tau + 1] < d[tau]) tau++;
+        found = tau;
+        break;
+      }
+    }
+    if (found < 0) return -1;
+    var a = d[found - 1], b = d[found], c = d[found + 1];
+    var shift = (a - c) / (2 * (a - 2 * b + c) || 1);
+    return sr / (found + shift);
+  }
+
+  function median(arr) {
+    var t = arr.slice().sort(function (p, q) { return p - q; });
+    return t[Math.floor(t.length / 2)];
+  }
+
+  var lastRun = 0;
+  function loop(ts) {
+    rafId = requestAnimationFrame(loop);
+    if (ts - lastRun < 40) return;
+    lastRun = ts;
+    analyser.getFloatTimeDomainData(buf);
+    var f = yin(buf, ctx.sampleRate);
+    if (f > 0) {
+      history.push(f);
+      if (history.length > 5) history.shift();
+      lastGood = ts;
+      show(median(history));
+    } else if (ts - lastGood > 700) {
+      history = [];
+      idle();
+    }
+  }
+
+  function show(f) {
+    var n = 12 * Math.log(f / s.a4) / Math.LN2 + 69;
+    var nearest = Math.round(n);
+    var cents = (n - nearest) * 100;
+    var shift = byId[s.inst].shift;
+    var rc = Math.round(cents);
+    $('noteBig').textContent = NAMES[pc(nearest + shift)];
+    $('concert').textContent = shift !== 0 ? 'sounds ' + NAMES[pc(nearest)] : ' ';
+    $('hz').textContent = f.toFixed(1) + ' Hz';
+    $('cents').textContent = rc === 0 ? '0¢' : (rc > 0 ? '+' : MINUS) + Math.abs(rc) + '¢';
+    var state = Math.abs(cents) <= 5 ? 'good' : 'warn';
+    $('verdict').textContent = state === 'good' ? 'In tune' : (cents > 0 ? 'Sharp' : 'Flat');
+    $('cap').textContent = 'Listening';
+    var m = $('meter');
+    m.classList.add('live');
+    m.classList.toggle('state-good', state === 'good');
+    m.classList.toggle('state-warn', state === 'warn');
+    var pos = 50 + Math.max(-50, Math.min(50, cents));
+    $('needle').style.left = pos + '%';
+  }
+
+  function idle() {
+    var m = $('meter');
+    m.classList.remove('live', 'state-good', 'state-warn');
+    $('needle').style.left = '50%';
+    $('noteBig').textContent = '–';
+    $('concert').innerHTML = '&nbsp;';
+    $('hz').innerHTML = '&nbsp;';
+    $('cents').innerHTML = '&nbsp;';
+    $('verdict').innerHTML = '&nbsp;';
+    $('cap').textContent = s.on ? 'Play a note' : 'Not listening';
+  }
+
+  function say(text, err) {
+    var el = $('msg');
+    el.textContent = text;
+    el.className = 'msg' + (err ? ' err' : '');
+  }
+
+  function start() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      say('This browser cannot reach the microphone. Open this page in Safari or Chrome over https.', true);
+      return;
+    }
+    navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+    }).then(function (st) {
+      stream = st;
+      var AC = window.AudioContext || window.webkitAudioContext;
+      ctx = new AC();
+      var src = ctx.createMediaStreamSource(st);
+      analyser = ctx.createAnalyser();
+      analyser.fftSize = 4096;
+      buf = new Float32Array(analyser.fftSize);
+      src.connect(analyser);
+      ctx.resume();
+      s.on = true;
+      history = []; lastGood = 0;
+      $('go').setAttribute('aria-pressed', 'true');
+      $('go').textContent = 'Stop listening';
+      say('Play one note at a time. Cents are measured against the nearest note at your chosen A.');
+      idle();
+      rafId = requestAnimationFrame(loop);
+      if (navigator.wakeLock) {
+        navigator.wakeLock.request('screen').then(function (l) {
+          wake = l;
+          l.addEventListener('release', function () { wake = null; });
+        }).catch(function () {});
+      }
+    }).catch(function () {
+      say('Microphone blocked. Allow microphone access for this page in your browser settings, then tap Start again.', true);
+    });
+  }
+
+  function stop() {
+    s.on = false;
+    cancelAnimationFrame(rafId);
+    if (stream) stream.getTracks().forEach(function (t) { t.stop(); });
+    if (ctx) ctx.close();
+    if (wake) { wake.release().catch(function () {}); wake = null; }
+    $('go').setAttribute('aria-pressed', 'false');
+    $('go').textContent = 'Start listening';
+    idle();
+  }
+
+  $('go').addEventListener('click', function () { if (s.on) stop(); else start(); });
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible' && s.on && navigator.wakeLock && !wake) {
+      navigator.wakeLock.request('screen').then(function (l) { wake = l; }).catch(function () {});
+    }
+  });
+  idle();
+})();
+</script>
+</body>
+</html>
