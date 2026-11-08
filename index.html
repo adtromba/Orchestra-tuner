@@ -575,7 +575,7 @@ main { padding-bottom: 120px; }
   </section>
   </div>
 
-  <p class="hint" id="buildTag" style="text-align:center;opacity:.6">Version: Nov 8k, Climb mode and 4-beat count-in</p>
+  <p class="hint" id="buildTag" style="text-align:center;opacity:.6">Version: Nov 8l, Climb: 3.5 s within 5 cents, ping when in tune</p>
   <p class="msg" id="msg">Tap Start, allow the microphone, then play one note at a time. The reading is in cents: 100 cents is one half step.</p>
 
   </div>
@@ -1118,7 +1118,7 @@ main { padding-bottom: 120px; }
     notes:  'Shows the nearest note and how many cents sharp or flat you are against piano pitch.',
     target: 'Pick the note you are playing. The meter shows how far you are from its pure (just) pitch over the key.',
     scale:  'Play one note at a time and hold each for at least 2 seconds in total. Breaths and restarts are fine. It moves on when you play the next note.',
-    climb:  'The scale plays the root and the next note. Hold that note in tune for 2.5 seconds and it moves up. Use headphones so the mic only hears you.',
+    climb:  'The scale plays the root and the next note. Land within 5 cents and you hear a ping. Hold it there for 3.5 seconds and it moves up. Use headphones so the mic only hears you.',
     beats:  'Ear training. Tune one note against a steady one. The wobble slows as you get closer and disappears when it is in tune.',
     mine:   'Play a chromatic scale slowly. The chart saves which notes you tend to play sharp or flat on this instrument.'
   };
@@ -1237,8 +1237,8 @@ main { padding-bottom: 120px; }
   // and is saved if at least 2 seconds were actually played. It moves on only when you play the next note.
   var guide = { steps: [], i: 0, rec: null, nextCand: [], hear: null }, dirUp = true, capTimer = 0;
   function guided() { return tMode === 'scale' || tMode === 'climb'; }
-  var CLIMB_HOLD = 2500, CLIMB_TOL = 10;
-  var climb = { hold: 0, last: 0, out: 0 }, climbV = [], cin = { on: false, timers: [] };
+  var CLIMB_HOLD = 3500, CLIMB_TOL = 5;
+  var climb = { hold: 0, last: 0, out: 0, locked: false }, climbV = [], cin = { on: false, timers: [] };
 
   // Four-beat click (60 bpm) before the scale starts
   function cinStop() { cin.on = false; cin.timers.forEach(clearTimeout); cin.timers = []; }
@@ -1284,6 +1284,17 @@ main { padding-bottom: 120px; }
       });
     });
   }
+  // A short high ping the moment you land inside the window, and a two-note chime when the note is done
+  function ping(notes) {
+    if (!ctx) return;
+    var t0 = ctx.currentTime + 0.01;
+    notes.forEach(function (fr, k) {
+      var o = ctx.createOscillator(), g = ctx.createGain(), t = t0 + k * 0.11;
+      o.type = 'sine'; o.frequency.value = fr;
+      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(Math.max(0.2, s.vol) * 0.5, t + 0.005); g.gain.exponentialRampToValueAtTime(0.001, t + 0.16);
+      o.connect(g); g.connect(ctx.destination); o.start(t); o.stop(t + 0.2);
+    });
+  }
   function setHold(frac, good) {
     var el = $('holdFill');
     el.style.width = Math.round(Math.max(0, Math.min(1, frac)) * 100) + '%';
@@ -1296,9 +1307,11 @@ main { padding-bottom: 120px; }
     if (Math.abs(dev) <= CLIMB_TOL) {
       if (climb.last && ts - climb.last < 200) climb.hold += Math.min(ts - climb.last, 100);
       climb.last = ts; climb.out = 0;
+      if (!climb.locked) { climb.locked = true; ping([2093]); }
       setHold(climb.hold / CLIMB_HOLD, true);
       if (climb.hold >= CLIMB_HOLD) {
-        climb.hold = 0; climb.last = 0;
+        climb.hold = 0; climb.last = 0; climb.locked = false;
+        ping([1568, 2349]);
         guide.i++;
         renderGuide();
         climbTone(guideStep());
@@ -1307,13 +1320,13 @@ main { padding-bottom: 120px; }
     } else {
       climb.last = ts;
       if (!climb.out) climb.out = ts;
-      if (ts - climb.out > 350) climb.hold = 0;
+      if (ts - climb.out > 350) { climb.hold = 0; climb.locked = false; }
       setHold(climb.hold / CLIMB_HOLD, false);
     }
     updateStepLine();
   }
   function climbSilence(ts) {
-    if (ts - lastGood > 350) { climb.hold = 0; climb.last = 0; climb.out = 0; setHold(0, false); }
+    if (ts - lastGood > 350) { climb.hold = 0; climb.last = 0; climb.out = 0; climb.locked = false; setHold(0, false); }
   }
   function beginCount() {
     countIn(function () { if (tMode === 'climb') climbTone(guideStep()); renderGuide(); });
@@ -1347,7 +1360,7 @@ main { padding-bottom: 120px; }
     up.push({ deg: 0, oct: true });
     guide.steps = dirUp ? up : up.slice().reverse();
     guide.i = 0; guideReset();
-    climb.hold = 0; climb.last = 0; climb.out = 0;
+    climb.hold = 0; climb.last = 0; climb.out = 0; climb.locked = false;
     renderGuide();
     if (tMode === 'climb' && listening && !cin.on) climbTone(guideStep());
   }
