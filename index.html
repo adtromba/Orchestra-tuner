@@ -547,7 +547,7 @@ svg .off { opacity: .3; }
     <button class="clear" id="tendClear">Clear saved results</button>
   </section>
 
-  <p class="hint" id="buildTag" style="text-align:center;opacity:.6">Version: Nov 8f, Hear the scale always available</p>
+  <p class="hint" id="buildTag" style="text-align:center;opacity:.6">Version: Nov 8g, Scale recording keeps going to the next note</p>
   <p class="msg" id="msg">Tap Start, allow the microphone, then play one note at a time. The reading is in cents: 100 cents is one half step.</p>
 
   </div>
@@ -1194,8 +1194,8 @@ svg .off { opacity: .3; }
   // ---------- guided scale: one continuous recording per note ----------
   // A note's recording starts at its first sound, keeps going through breaths and restarts (gaps stay blank),
   // and is saved if at least 3 seconds were actually played. It moves on only when you play the next note.
-  var guide = { steps: [], i: 0, rec: null, nextCand: [] }, dirUp = true, capTimer = 0;
-  var MIN_VOICED = 3000, SWITCH_FRAMES = 10, LOCK_FRAMES = 9, LOCK_TOL = 5, END_SILENCE = 3000;
+  var guide = { steps: [], i: 0, rec: null, nextCand: [], hear: null }, dirUp = true, capTimer = 0;
+  var MIN_VOICED = 3000, SWITCH_FRAMES = 8, LOCK_FRAMES = 9, LOCK_TOL = 5, END_SILENCE = 3000;
 
   function std(a) { var m = mean(a), t = 0; a.forEach(function (v) { t += (v - m) * (v - m); }); return Math.sqrt(t / a.length); }
   function stepLabel(st) { return st.oct ? 'Octave' : DEG[st.deg]; }
@@ -1218,7 +1218,7 @@ svg .off { opacity: .3; }
     var sound = cn + oct;
     return shift === 0 ? sound : spell(s.note, minor, shift, semi, step) + ' (sounds ' + sound + ')';
   }
-  function guideReset() { guide.rec = null; guide.nextCand = []; }
+  function guideReset() { guide.rec = null; guide.nextCand = []; guide.hear = null; }
   function guideStart() {
     var up = [0, 1, 2, 3, 4, 5, 6].map(function (d) { return { deg: d, oct: false }; });
     up.push({ deg: 0, oct: true });
@@ -1246,6 +1246,7 @@ svg .off { opacity: .3; }
       line += ' · ' + (ms / 1000).toFixed(1) + ' s played';
       line += ms >= MIN_VOICED ? ' ✓ ' + (guide.steps[guide.i + 1] ? 'saves when you play the next note' : 'saves after a pause or when you stop') : ' (saves at 3 s)';
     }
+    if (listening && guide.hear) line += ' · hearing the ' + guide.hear + ', waiting for the ' + stepLabel(st);
     $('guideStep').textContent = line;
   }
   function renderGuide() {
@@ -1264,29 +1265,39 @@ svg .off { opacity: .3; }
     if (!st) return;
     var a = 1200 * Math.log(f / s.a4) / Math.LN2, pcC = mod1200(a - rootAbs()), degs = scaleDegs();
     var devCur = dd(pcC, justCents(degs[st.deg]));
-    var nxt = guide.steps[guide.i + 1] || null;
-    var devNext = nxt ? dd(pcC, justCents(degs[nxt.deg])) : 999;
-    if (nxt && Math.abs(devNext) <= 60 && Math.abs(devNext) < Math.abs(devCur)) {
-      // closer to the next note: it takes about a third of a second of steady playing to count as moving on
+    // the closest of the next three notes (so skipping a note, or playing one a bit off, never leaves it stuck)
+    var bestJ = -1, bestDev = 999, k;
+    for (k = guide.i + 1; k <= guide.i + 3 && k < guide.steps.length; k++) {
+      var dv = dd(pcC, justCents(degs[guide.steps[k].deg]));
+      if (Math.abs(dv) < Math.abs(bestDev)) { bestDev = dv; bestJ = k; }
+    }
+    if (bestJ >= 0 && Math.abs(bestDev) <= 70 && Math.abs(bestDev) < Math.abs(devCur)) {
+      // closer to a later note: it takes about a quarter of a second of steady playing to count as moving on
       var c = guide.nextCand;
-      if (c.length && Math.abs(a - c[c.length - 1].a) > 35) c = guide.nextCand = [];
-      c.push({ ts: ts, a: a });
-      if (c.length >= SWITCH_FRAMES) advance(c);
+      if (c.length && (c[c.length - 1].j !== bestJ || Math.abs(a - c[c.length - 1].a) > 35)) c = guide.nextCand = [];
+      c.push({ ts: ts, a: a, j: bestJ });
+      if (c.length >= SWITCH_FRAMES) advance(c, bestJ);
       return;
     }
     guide.nextCand = [];
     if (Math.abs(devCur) <= 60) {
       if (!guide.rec) guide.rec = { f: [] };
       guide.rec.f.push({ ts: ts, a: a });
+      guide.hear = null;
       setClose(devCur);
       updateStepLine();
-    } else { setClose(null); }
+    } else {
+      setClose(null);
+      var nd = DEG[nearestDeg(pcC)];
+      if (guide.hear !== nd) { guide.hear = nd; updateStepLine(); }
+    }
   }
 
-  function advance(seed) {
+  function advance(seed, j) {
     finalizeRec();
-    guide.i++;
+    guide.i = j;
     guide.nextCand = [];
+    guide.hear = null;
     guide.rec = { f: seed.map(function (x) { return { ts: x.ts, a: x.a }; }) };   // the new note starts where you started playing it
     renderGuide();
   }
@@ -1832,7 +1843,12 @@ svg .off { opacity: .3; }
     if (!r || tMode !== 'scale' || r.dataset.deg === undefined) return;
     var deg = +r.dataset.deg;
     scaleRep[deg] = [];
-    guide.steps = [{ deg: deg, oct: false }]; guide.i = 0; guideReset();
+    var full = [0, 1, 2, 3, 4, 5, 6].map(function (d) { return { deg: d, oct: false }; });
+    full.push({ deg: 0, oct: true });
+    if (!dirUp) full.reverse();
+    var at = 0;
+    full.forEach(function (x, ix) { if (!x.oct && x.deg === deg) at = ix; });
+    guide.steps = full.slice(at); guide.i = 0; guideReset();
     renderGuide();
     setCap('');
   });
