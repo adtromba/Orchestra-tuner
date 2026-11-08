@@ -449,7 +449,7 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
     <div class="label">Scale report</div>
     <div id="scaleRows"></div>
     <p class="hint" id="scaleSum"></p>
-    <p class="hint" id="hearMsg">Tap Hear it on a note. A steady pure note plays the whole time (about 16 s). Over it you hear your pitch (wobble), then the pure note (smooth), twice. Stop listening first.</p>
+    <p class="hint" id="hearMsg">Tap Hear it on a note. The root plays the whole time (about 16 s). Against it you hear your note (wobble), then the pure note (smooth), twice. Stop listening first.</p>
     <p class="hint">Hollow dot: where you landed. Solid dot: where you settled. The line shows your pitch over time, the green band is within 5&cent;, and the dashed line marks when you locked in. Tap a row to retake that note.</p>
     <button class="clear" id="scaleClear">Start over</button>
   </section>
@@ -461,6 +461,7 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
     <button class="clear" id="tendClear">Clear saved results</button>
   </section>
 
+  <p class="hint" id="buildTag" style="text-align:center;opacity:.6">Version: Nov 8, 4 s Hear it vs root</p>
   <p class="msg" id="msg">Tap Start, allow the microphone, then play one note at a time. The reading is in cents: 100 cents is one half step.</p>
 
   </div>
@@ -1385,10 +1386,10 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
     stopTimer = setTimeout(function () { if (!s.playing && !trOn && hearing < 0 && ctx) ctx.suspend(); }, 500);
   }
   function toneOnce(freq, t0, dur) {
-    var o = ctx.createOscillator(), f = ctx.createBiquadFilter(), g = ctx.createGain(), lv = Math.max(0.05, s.vol) * 0.5;
-    if (s.wave === 'oboe') o.setPeriodicWave(oboeWave); else o.type = s.wave;
+    var o = ctx.createOscillator(), f = ctx.createBiquadFilter(), g = ctx.createGain(), lv = Math.max(0.05, s.vol) * 0.3;
+    o.type = 'sawtooth';
     o.frequency.value = freq;
-    f.type = 'lowpass'; f.frequency.value = Math.min(6000, freq * 6);
+    f.type = 'lowpass'; f.frequency.value = 2600;
     g.gain.setValueAtTime(0, t0);
     g.gain.linearRampToValueAtTime(lv, t0 + 0.05);
     g.gain.setValueAtTime(lv, t0 + dur - 0.12);
@@ -1406,19 +1407,19 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
     var a = scaleRep[deg] || [];
     if (!a.length) return;
     var settled = mean(a.map(function (c) { return c.settled; }));
-    var r = SCALES[s.scale][deg][1], target = baseFreq() * r[0] / r[1];
-    while (target < 200) target *= 2;
-    var mine = target * Math.pow(2, settled / 1200);
+    var r = SCALES[s.scale][deg][1], root = baseFreq();
+    while (root < 150) root *= 2;
+    var target = root * r[0] / r[1], mine = target * Math.pow(2, settled / 1200);
     audioReady().then(function () {
       var t0 = ctx.currentTime + 0.1, seq = [mine, target, mine, target], SEG = 4;
       var sharp = settled >= 0 ? 'sharp' : 'flat', amt = Math.abs(settled).toFixed(0);
-      toneOnce(target, t0, seq.length * SEG);          // steady pure reference the whole time
+      toneOnce(root, t0, seq.length * SEG);            // the root drones the whole time
       seq.forEach(function (f, i) { toneOnce(f, t0 + i * SEG, SEG); });
       seq.forEach(function (f, i) {
         hearTimers.push(setTimeout(function () {
           $('hearMsg').textContent = i % 2 === 0
-            ? 'Your note against the pure note' + (Math.abs(settled) < 1 ? ': you were right on pitch, so it is smooth' : ' (' + amt + '\u00A2 ' + sharp + '): listen for the wobble')
-            : 'Pure note against the pure note: smooth, no wobble';
+            ? 'Your ' + DEG[deg] + ' against the root' + (Math.abs(settled) < 1 ? ': you were right on pitch, so it is smooth' : ' (' + amt + '\u00A2 ' + sharp + '): listen for the wobble')
+            : 'The pure ' + DEG[deg] + ' against the root: smooth, no wobble';
         }, 100 + i * SEG * 1000));
       });
       hearTimers.push(setTimeout(function () {
