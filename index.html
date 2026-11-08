@@ -189,37 +189,61 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
 :root[data-theme="dark"] { --l0:#4fc2a9; --l1:#fb923c; --l2:#a78bfa; --l3:#38bdf8; --l4:#facc15; --l5:#f472b6; }
 .l0 { color: var(--l0); } .l1 { color: var(--l1); } .l2 { color: var(--l2); } .l3 { color: var(--l3); } .l4 { color: var(--l4); } .l5 { color: var(--l5); }
 .sw { display: inline-block; width: 14px; height: 14px; border-radius: 50%; background: currentColor; flex: none; }
-.sw.sm { width: 10px; height: 10px; margin-right: 4px; }
-#rhBpm { font-size: 44px; line-height: 1; }
+.sw.sm { width: 10px; height: 10px; margin-right: 6px; }
+.rtempo { display: flex; align-items: center; gap: 8px; }
+.rtempo .rstep { flex: none; width: 52px; height: 52px; border: 1px solid var(--line); border-radius: 12px; background: transparent; color: var(--ink); font: 500 24px var(--font-display); cursor: pointer; }
+.rbpmbox { flex: 1; text-align: center; line-height: 1; min-width: 0; }
+.rbpmbox span { display: block; font: 500 44px var(--font-display); }
+.rbpmbox small { font-size: 12px; color: var(--muted); }
+.rtempo .rtap { flex: none; width: 60px; min-height: 52px; padding: 0; }
+.rhead2 { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.rhead2 .stepper { flex: 1 1 150px; max-width: 190px; gap: 4px; }
+.rhead2 .stepper button { width: 44px; }
+.rhead2 .stepper span { font-size: 15px; white-space: nowrap; }
+.rhead2 .seg { flex: 1 1 120px; max-width: 160px; }
+.rhead2 .seg button { min-height: 44px; font-size: 14px; }
 .rviz svg { width: 100%; height: auto; display: block; }
 .rviz.circle svg { max-width: 340px; margin: 0 auto; }
 .rtxt { font: 11px var(--font-display); fill: var(--muted); }
-.rlab { font: 600 17px var(--font-display); fill: currentColor; }
+.rbn { font: 600 12px var(--font-display); fill: var(--ink); }
+.rlab { font: 600 16px var(--font-display); fill: currentColor; }
 .rdot { fill: currentColor; }
 .rdot.sil { fill: var(--surface); stroke: currentColor; stroke-width: 1.5; }
 .rdot.hit { stroke: var(--ink); stroke-width: 3; }
 .rhit { fill: transparent; cursor: pointer; }
 .rbeat { stroke: var(--line); stroke-width: 1; }
+.rslot { stroke: var(--line); stroke-width: 1; opacity: .7; stroke-dasharray: 2 3; }
 .rbase { stroke: var(--line); stroke-width: 1; fill: none; }
-.rtick { stroke: var(--muted); stroke-width: 1; }
 .rmeet { stroke: var(--ink); opacity: .3; }
 .rhead { stroke: var(--ink); stroke-width: 2; opacity: .75; }
 .rpoly { fill: none; stroke: currentColor; stroke-width: 1.5; opacity: .45; }
 .rctr { font: 500 18px var(--font-display); fill: var(--muted); text-anchor: middle; }
+.rcell { fill: var(--line); opacity: .6; }
+.rcell.on { fill: currentColor; opacity: 1; }
+.rcell.sil { fill: var(--surface); stroke: currentColor; stroke-width: 1.2; opacity: 1; }
+.rcn { font: 600 10px var(--font-display); fill: var(--surface); text-anchor: middle; pointer-events: none; }
 svg .off { opacity: .3; }
 .why { font-size: 14px; display: flex; flex-direction: column; gap: 4px; }
-.lays { display: flex; flex-direction: column; gap: 10px; }
-.lay { border: 1px solid var(--line); border-radius: 12px; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+.why .sw.sm { vertical-align: baseline; }
+.rtitle { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.lays { display: flex; flex-direction: column; gap: 8px; }
+.lay { border: 1px solid var(--line); border-left: 6px solid var(--line); border-radius: 12px; padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; }
 .lay.dim { opacity: .55; }
-.lay-top { display: flex; align-items: center; gap: 10px; }
-.lay-top .stepper { flex: none; width: 150px; gap: 6px; }
-.lay-top .stepper button { width: 44px; }
-.lay-n { font-size: 15px; flex: none; }
-.lay-name { font-size: 13px; color: var(--muted); flex: 1; min-width: 0; }
-.lay-bot { display: flex; gap: 6px; align-items: center; }
-.lay-bot select { flex: 1; min-width: 0; min-height: 44px; }
-.mini { min-height: 44px; min-width: 44px; padding: 0 10px; border: 1px solid var(--line); border-radius: 10px; background: transparent; color: var(--ink); font: 500 14px var(--font-body); cursor: pointer; }
+.lay-top { display: flex; align-items: center; gap: 6px; }
+.lay-top .stepper { flex: 1 1 auto; max-width: 150px; min-width: 0; gap: 4px; }
+.lay-top .stepper button { width: 40px; height: 44px; }
+.lay-top .stepper span { font-size: 17px; }
+.lay-n { font-size: 15px; flex: 1 1 auto; min-width: 0; }
+.lay-sp { flex: 1 1 0; }
+.lay-name { font-size: 13px; color: var(--muted); }
+.lay-more { display: flex; gap: 6px; align-items: center; }
+.lay-more select { flex: 1; min-width: 0; min-height: 44px; }
+.mini { min-height: 44px; min-width: 44px; padding: 0 8px; border: 1px solid var(--line); border-radius: 10px; background: transparent; color: var(--ink); font: 500 14px var(--font-body); cursor: pointer; }
 .mini[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--bg); }
+.mini[aria-expanded="true"] { background: var(--bg); border-color: var(--ink); }
+.dock { position: sticky; bottom: 12px; z-index: 5; display: flex; align-items: center; gap: 12px; padding: 10px; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 6px 20px rgba(0,0,0,.2); }
+.dock .play { flex: 1; min-height: 56px; }
+.dock-msg { flex: 0 0 112px; font-size: 13px; line-height: 1.25; color: var(--muted); }
 </style>
 </head>
 <body>
@@ -500,76 +524,65 @@ svg .off { opacity: .3; }
     <button class="clear" id="tendClear">Clear saved results</button>
   </section>
 
-  <p class="hint" id="buildTag" style="text-align:center;opacity:.6">Version: Nov 8c, new Rhythm tab (metronome and polyrhythms)</p>
+  <p class="hint" id="buildTag" style="text-align:center;opacity:.6">Version: Nov 8d, simpler Rhythm tab with counting grid</p>
   <p class="msg" id="msg">Tap Start, allow the microphone, then play one note at a time. The reading is in cents: 100 cents is one half step.</p>
 
   </div>
 
   <div class="panel" id="panel-rhythm" hidden>
   <section class="card">
-    <div class="row">
-      <div class="cap">Tempo</div>
-      <div class="stepper">
-        <button id="rhMinus" aria-label="Slower">&minus;</button>
-        <span id="rhBpm">80</span>
-        <button id="rhPlus" aria-label="Faster">+</button>
-      </div>
-      <input type="range" id="rhSlide" min="20" max="300" step="1" value="80" aria-label="Tempo">
-      <p class="hint" id="rhUnit"></p>
+    <div class="rtempo">
+      <button class="rstep" id="rhMinus" aria-label="Slower">&minus;</button>
+      <div class="rbpmbox"><span id="rhBpm">80</span><small>beats per minute</small></div>
+      <button class="rstep" id="rhPlus" aria-label="Faster">+</button>
+      <button class="tunea rtap" id="rhTap">Tap</button>
     </div>
-    <div class="actions">
-      <button class="play" id="rhPlay" aria-pressed="false">Start</button>
-      <button class="tunea" id="rhTap">Tap tempo</button>
-    </div>
-    <p class="cap-msg" id="rhStatus"></p>
+    <input type="range" id="rhSlide" min="20" max="300" step="1" value="80" aria-label="Tempo">
+    <select id="rhPreset" aria-label="Try an example"></select>
   </section>
 
   <section class="card">
-    <div class="row">
-      <label class="label" for="rhPreset">Try a rhythm</label>
-      <select id="rhPreset"></select>
-    </div>
-    <div class="seg" id="rhView" role="group" aria-label="Picture style">
-      <button data-v="lines" aria-pressed="true">Lines</button>
-      <button data-v="circle" aria-pressed="false">Circle</button>
+    <div class="rhead2">
+      <div class="stepper">
+        <button id="rhBeatsDown" aria-label="Fewer beats">&minus;</button>
+        <span id="rhBeatsVal">4 beats</span>
+        <button id="rhBeatsUp" aria-label="More beats">+</button>
+      </div>
+      <div class="seg" id="rhView" role="group" aria-label="Picture style">
+        <button data-v="lines" aria-pressed="true">Count</button>
+        <button data-v="circle" aria-pressed="false">Circle</button>
+      </div>
     </div>
     <div class="rviz" id="rhViz"></div>
+    <p class="hint">Tap a dot to accent it or silence it.</p>
     <div class="why" id="rhWhy"></div>
-    <p class="hint">Tap a dot to accent it or silence it. A line straight down means those layers land together.</p>
   </section>
 
   <section class="card">
-    <div class="label">Bar <output id="rhMeter">4/4</output></div>
-    <div class="stepper">
-      <button id="rhBeatsDown" aria-label="Fewer beats">&minus;</button>
-      <span id="rhBeatsVal">4 beats</span>
-      <button id="rhBeatsUp" aria-label="More beats">+</button>
+    <div class="rtitle">
+      <div class="label">Rhythms</div>
+      <button class="mini" id="rhAdd">+ Add</button>
     </div>
-    <div class="row">
-      <div class="label">Each beat is a</div>
-      <div class="seg" id="rhDen" role="group" aria-label="Note value of one beat">
-        <button data-v="2" aria-pressed="false">half</button>
-        <button data-v="4" aria-pressed="true">quarter</button>
-        <button data-v="8" aria-pressed="false">8th</button>
-        <button data-v="16" aria-pressed="false">16th</button>
-      </div>
-    </div>
-    <div class="row" id="rhGroupRow">
-      <label class="label" for="rhGroup">Accent pattern</label>
-      <select id="rhGroup"></select>
-    </div>
-  </section>
-
-  <section class="card">
-    <div class="label">Layers</div>
-    <p class="hint">Each layer has its own sound. Mute or solo layers to hear how they fit together.</p>
     <div class="lays" id="rhLayers"></div>
-    <button class="clear" id="rhAdd">Add a layer</button>
   </section>
 
   <details class="card">
     <summary>More settings</summary>
     <div class="inner">
+      <div class="row" id="rhGroupRow">
+        <label class="label" for="rhGroup">Accent pattern</label>
+        <select id="rhGroup"></select>
+      </div>
+      <div class="row">
+        <div class="label">Each beat is a</div>
+        <div class="seg" id="rhDen" role="group" aria-label="Note value of one beat">
+          <button data-v="2" aria-pressed="false">half</button>
+          <button data-v="4" aria-pressed="true">quarter</button>
+          <button data-v="8" aria-pressed="false">8th</button>
+          <button data-v="16" aria-pressed="false">16th</button>
+        </div>
+        <p class="hint" id="rhNote"></p>
+      </div>
       <div class="row">
         <div class="label">Volume <output id="rhVolOut"></output></div>
         <input type="range" id="rhVol" min="20" max="100" step="1" value="80" aria-label="Volume">
@@ -592,18 +605,23 @@ svg .off { opacity: .3; }
         <p class="hint">Keep counting through the silent bars and see if you land back with the click.</p>
       </div>
       <div class="row">
-        <div class="label">Spread layers left and right</div>
-        <div class="seg" id="rhSpread" role="group" aria-label="Spread layers">
+        <div class="label">Spread rhythms left and right</div>
+        <div class="seg" id="rhSpread" role="group" aria-label="Spread rhythms">
           <button data-v="off" aria-pressed="true">Off</button>
           <button data-v="on" aria-pressed="false">On</button>
         </div>
-        <p class="hint">Headphones only. Each layer comes from a different side so it is easier to follow.</p>
+        <p class="hint">Headphones only. Each rhythm comes from a different side.</p>
       </div>
-      <button class="clear" id="rhReset">Reset rhythm</button>
+      <button class="clear" id="rhReset">Start over</button>
     </div>
   </details>
 
   <p class="hint" id="buildTag2" style="text-align:center;opacity:.6"></p>
+
+  <div class="dock">
+    <button class="play" id="rhPlay" aria-pressed="false">Start</button>
+    <div class="dock-msg" id="rhStatus"></div>
+  </div>
   </div>
 </main>
 
@@ -1713,7 +1731,7 @@ svg .off { opacity: .3; }
   var R_SOUNDS = [['low', 'Low drum'], ['wood', 'Wood'], ['click', 'Click'], ['bell', 'Bell'], ['hat', 'Hat']];
   var R_DEF = ['wood', 'bell', 'low', 'hat', 'click', 'wood'];
   var R_PAN = [-0.6, 0.6, 0, -0.9, 0.9, 0.3];
-  var R_MAX = 6, R_LOOK = 0.15, GX0 = 38, GXW = 350;
+  var R_MAX = 6, R_LOOK = 0.15, GX0 = 42, GXW = 288;
   var DENS = [2, 4, 8, 16];
   var DEN_NAME = { 2: 'half', 4: 'quarter', 8: '8th', 16: '16th' };
   var NOTE_NAME = { 1: 'whole', 2: 'half', 4: 'quarter', 8: '8th', 16: '16th', 32: '32nd', 64: '64th' };
@@ -1743,7 +1761,7 @@ svg .off { opacity: .3; }
   ];
 
   var rh = { bpm: 80, beats: 4, den: 4, group: [4], layers: [], gapOn: 4, gapOff: 0, vol: 0.8, spread: false,
-             view: 'lines', running: false, live: false, sched: 0 };
+             view: 'lines', running: false, live: false, sched: 0, open: -1 };
   var rctx = null, rmaster = null, rbus = null, rnoise = null, rTimer = null, rRaf = 0, rWake = null;
   var clk = { t0: 0, ph0: 0 };           // phase (in bars) was ph0 at time t0; one bar lasts cyc() seconds
   var rDots = [], rFlash = [], rLastStatus = '', rTaps = [];
@@ -1769,7 +1787,7 @@ svg .off { opacity: .3; }
 
   function rDefaults() {
     rh.bpm = 80; rh.beats = 4; rh.den = 4; rh.group = defGroup(4);
-    rh.layers = [mkLayer(4, R_DEF[0])];
+    rh.layers = [mkLayer(4, R_DEF[0]), mkLayer(3, R_DEF[1])];
     rh.layers[0].pat = groupPat(rh.group, 4);
     rh.gapOn = 4; rh.gapOff = 0; rh.vol = 0.8; rh.spread = false; rh.view = 'lines';
   }
@@ -1974,45 +1992,52 @@ svg .off { opacity: .3; }
   }
   function stNext(st) { return st === 1 ? 2 : st === 2 ? 0 : 1; }
 
-  function drawLines(meets, Ls) {
-    var N = rh.beats, K = rh.layers.length, ROW = 44, TOP = 28, ruler = Ls > 0 && Ls <= 48, RH = ruler ? 28 : 8;
-    var yEnd = TOP + K * ROW, H = yEnd + RH, s, b, x, j, i;
-    s = '<svg viewBox="0 0 400 ' + H + '" role="img" aria-label="Timeline of the layers across one bar">';
+  function drawLines(meets, Ls, aud) {
+    var N = rh.beats, K = rh.layers.length, math = aud.length >= 2 && Ls > 0 && Ls <= 48;
+    var TOP = math ? 42 : 28, ROW = math ? 56 : 44, yEnd = TOP + K * ROW, H = yEnd + 6, s, b, x, q;
+    s = '<svg viewBox="0 0 340 ' + H + '" role="img" aria-label="Timeline of the rhythms across one bar">';
+    s += '<text class="rtxt" x="0" y="12">beat</text>';
     for (b = 0; b <= N; b++) {
       x = GX0 + b / N * GXW;
       s += '<line class="rbeat" x1="' + x + '" x2="' + x + '" y1="16" y2="' + yEnd + '"' + (b === N ? ' stroke-dasharray="3 3"' : '') + '/>';
-      if (b < N) s += '<text class="rtxt" x="' + x + '" y="12" text-anchor="middle">' + (b + 1) + '</text>';
+      if (b < N) s += '<text class="rbn" x="' + x + '" y="13" text-anchor="middle">' + (b + 1) + '</text>';
+    }
+    if (math) {
+      s += '<text class="rtxt" x="0" y="34">count</text>';
+      for (q = 0; q < Ls; q++) {
+        x = GX0 + q / Ls * GXW;
+        if ((q * N) % Ls !== 0) s += '<line class="rslot" x1="' + x + '" x2="' + x + '" y1="38" y2="' + yEnd + '"/>';
+        if (Ls <= 24) s += '<text class="rtxt" x="' + x + '" y="34" text-anchor="middle">' + (q + 1) + '</text>';
+      }
     }
     meets.forEach(function (m) {
       x = GX0 + m.p * GXW;
       s += '<line class="rmeet" x1="' + x + '" x2="' + x + '" y1="16" y2="' + yEnd + '" stroke-width="' + (1 + (m.c - 1) * 1.2) + '"/>';
     });
     rh.layers.forEach(function (L, j) {
-      var y = TOP + j * ROW + ROW / 2;
+      var r0 = TOP + j * ROW, y = r0 + (math ? 18 : ROW / 2), i, step = math ? Ls / L.n : 0;
       s += '<g class="' + (isAud(L) ? '' : 'off') + '"><line class="rbase" x1="' + GX0 + '" x2="' + (GX0 + GXW) + '" y1="' + y + '" y2="' + y + '"/>';
-      s += '<text class="rlab l' + j + '" x="2" y="' + (y + 5) + '">' + L.n + '</text>';
+      s += '<text class="rlab l' + j + '" x="0" y="' + (y + 6) + '">' + L.n + '</text>';
+      if (math) {
+        s += '<text class="rtxt" x="0" y="' + (r0 + 44) + '">by ' + step + '</text>';
+        for (q = 0; q < Ls; q++) {
+          var cx0 = GX0 + q / Ls * GXW, cw = GXW / Ls - 1.5, hi = q % step === 0 ? q / step : -1, cs = hi >= 0 ? L.pat[hi] : -1;
+          s += '<rect class="rcell' + (hi >= 0 ? (cs ? ' on l' + j : ' sil l' + j) : '') + '" x="' + cx0.toFixed(1) + '" y="' + (r0 + 34) + '" width="' + cw.toFixed(1) + '" height="14" rx="2"/>';
+          if (cs > 0 && Ls <= 24) s += '<text class="rcn" x="' + (cx0 + cw / 2).toFixed(1) + '" y="' + (r0 + 44.5) + '">' + (q + 1) + '</text>';
+        }
+      }
       for (i = 0; i < L.n; i++) {
-        var st = L.pat[i], cx = (GX0 + i / L.n * GXW).toFixed(1);
-        s += '<circle class="rdot l' + j + (st ? '' : ' sil') + '" cx="' + cx + '" cy="' + y + '" r="' + (st === 2 ? 9 : 6) + '" data-l="' + j + '" data-i="' + i + '"/>';
+        var st = L.pat[i], dx = (GX0 + i / L.n * GXW).toFixed(1);
+        s += '<circle class="rdot l' + j + (st ? '' : ' sil') + '" cx="' + dx + '" cy="' + y + '" r="' + (st === 2 ? 9 : 6) + '" data-l="' + j + '" data-i="' + i + '"/>';
       }
       s += '</g>';
     });
     rh.layers.forEach(function (L, j) {
-      var y = TOP + j * ROW + ROW / 2, hr = Math.max(5, Math.min(15, GXW / L.n / 2));
+      var y = TOP + j * ROW + (math ? 18 : ROW / 2), hr = Math.max(5, Math.min(15, GXW / L.n / 2));
       for (var i = 0; i < L.n; i++) {
         s += '<circle class="rhit" cx="' + (GX0 + i / L.n * GXW).toFixed(1) + '" cy="' + y + '" r="' + hr.toFixed(1) + '" data-l="' + j + '" data-i="' + i + '"/>';
       }
     });
-    if (ruler) {
-      var y0 = yEnd + 4;
-      for (var q = 0; q < Ls; q++) {
-        x = GX0 + q / Ls * GXW;
-        var isB = (q * N) % Ls === 0;
-        s += '<line class="rtick" x1="' + x + '" x2="' + x + '" y1="' + y0 + '" y2="' + (y0 + (isB ? 9 : 5)) + '"/>';
-        if (Ls <= 24) s += '<text class="rtxt" x="' + x + '" y="' + (y0 + 21) + '" text-anchor="middle">' + (q + 1) + '</text>';
-      }
-      if (Ls <= 24) s += '<text class="rtxt" x="2" y="' + (y0 + 21) + '">count</text>';
-    }
     s += '<line id="rhHead" class="rhead" x1="' + GX0 + '" x2="' + GX0 + '" y1="14" y2="' + yEnd + '" style="display:none"/>';
     return s + '</svg>';
   }
@@ -2048,35 +2073,31 @@ svg .off { opacity: .3; }
     return s + '</svg>';
   }
   function listNums(a) { return a.length > 8 ? a.slice(0, 6).join(', ') + ' ...' : a.join(', '); }
+  function andList(a) { return a.length < 2 ? a.join('') : a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1]; }
   function whyHTML(aud, meets, Ls) {
-    if (rh.layers.length < 2) return 'Add a layer to see and hear two rhythms against each other.';
-    if (aud.length < 2) return 'Only one layer is sounding. Unmute another to compare.';
-    var h = '';
+    if (rh.layers.length < 2) return 'Add a rhythm to see and hear two rhythms against each other.';
+    if (aud.length < 2) return 'Only one rhythm is sounding. Unmute another to compare.';
+    var h = '', ns = [];
+    aud.forEach(function (o) { if (ns.indexOf(o.L.n) < 0) ns.push(o.L.n); });
     if (Ls > 0 && Ls <= 48) {
-      h += '<div><b>Count 1 to ' + Ls + ' in each bar.</b></div>';
+      h += '<div><b>Count ' + Ls + ' in each bar.</b> ' +
+        (ns.length > 1 ? Ls + ' is the smallest number that ' + andList(ns) + ' all fit into evenly, so it is where they meet again.' : 'These all have the same number of hits.') + '</div>';
       aud.forEach(function (o) {
-        var step = Ls / o.L.n, hits = [], all = true;
-        o.L.pat.forEach(function (st, i) { if (st) hits.push(i * step + 1); else all = false; });
-        h += '<div><i class="sw sm l' + o.j + '"></i>' + o.L.n + ' lands on ' +
-          (all && hits.length > 6 ? (step === 1 ? 'every number' : 'every ' + step + (step === 2 ? 'nd' : step === 3 ? 'rd' : 'th') + ' number') : listNums(hits)) + '</div>';
+        h += '<div><i class="sw sm l' + o.j + '"></i>' + o.L.n + ' hits &times; ' + (Ls / o.L.n) + (Ls / o.L.n === 1 ? ' count' : ' counts') + ' apart = ' + Ls + '</div>';
       });
       var sl = meets.map(function (m) { return Math.round(m.p * Ls) + 1; });
       if (!sl.length) h += '<div>They never land together (some hits are silenced).</div>';
-      else if (sl.length === 1 && sl[0] === 1) h += '<div>They land together only on 1, the downbeat.</div>';
-      else h += '<div>They land together on ' + listNums(sl) + ' (' + sl.length + (sl.length === 1 ? ' time' : ' times') + ' a bar).</div>';
+      else if (sl.length === 1 && sl[0] === 1) h += '<div>They land together only on count 1, the downbeat.</div>';
+      else h += '<div>They land together on counts ' + listNums(sl) + ' (' + sl.length + (sl.length === 1 ? ' time' : ' times') + ' a bar).</div>';
     } else {
-      h += '<div><b>There is no easy count for these.</b> They land together ' + meets.length + (meets.length === 1 ? ' time' : ' times') + ' a bar. Listen for those spots.</div>';
-    }
-    if (aud.length === 2) {
-      var a = aud[0].L.n, b = aud[1].L.n, g = gcd(a, b);
-      h += '<div>That is the ratio ' + (a / g) + ' : ' + (b / g) + (g > 1 ? ', repeated ' + g + ' times a bar.' : '.') + '</div>';
+      h += '<div><b>No easy count for these.</b> They land together ' + meets.length + (meets.length === 1 ? ' time' : ' times') + ' a bar. Listen for those spots.</div>';
     }
     return h;
   }
-  function rDraw() {
+    function rDraw() {
     var aud = audibleLayers(), meets = meetsOf(aud), Ls = slotsOf(aud), viz = $('rhViz');
     viz.className = 'rviz' + (rh.view === 'circle' ? ' circle' : '');
-    viz.innerHTML = rh.view === 'circle' ? drawCircle(meets) : drawLines(meets, Ls);
+    viz.innerHTML = rh.view === 'circle' ? drawCircle(meets) : drawLines(meets, Ls, aud);
     rDots = []; rFlash = [];
     Array.prototype.forEach.call(viz.querySelectorAll('.rdot'), function (el) {
       var l = +el.getAttribute('data-l'), i = +el.getAttribute('data-i');
@@ -2117,18 +2138,18 @@ svg .off { opacity: .3; }
   // ----- controls -----
   function layerName(n) {
     var N = rh.beats, den = rh.den;
-    if (n === 1 && N > 1) return 'once a bar';
+    if (n === 1 && N > 1) return 'one note a bar';
     if (n % N === 0) {
       var k = n / N;
       if ((k & (k - 1)) === 0) {
         var nm = NOTE_NAME[den * k];
-        if (!nm) return k + ' per beat';
-        return nm + ' notes' + (k === 1 ? ' (the beat)' : ' (' + k + ' per beat)');
+        if (!nm) return k + ' notes per beat';
+        return k === 1 ? nm + ' notes, one per beat' : nm + ' notes, ' + k + ' per beat';
       }
-      return (TUP[k] || k + '-tuplets') + ' (' + k + ' per beat)';
+      return (TUP[k] || k + '-tuplets') + ', ' + k + ' per beat';
     }
-    if (N % n === 0) return 'every ' + (N / n) + ' beats';
-    return n + ' in the space of ' + N + ' beats';
+    if (N % n === 0) return 'one note every ' + (N / n) + ' beats';
+    return n + ' notes spread evenly across the ' + N + ' beats';
   }
   function groupOptions(n) {
     var out = [[n]], comps = [], ones = [], i;
@@ -2151,14 +2172,18 @@ svg .off { opacity: .3; }
     return rh.layers.map(function (L, j) {
       var top = j === 0
         ? '<div class="lay-n"><b>Beat</b>, ' + L.n + ' a bar</div>'
-        : '<div class="stepper"><button data-a="dec" aria-label="Fewer hits">&minus;</button><span>' + L.n + '</span><button data-a="inc" aria-label="More hits">+</button></div>';
+        : '<div class="stepper"><button data-a="dec" aria-label="Fewer hits">&minus;</button><span>' + L.n + '</span><button data-a="inc" aria-label="More hits">+</button></div><span class="lay-sp"></span>';
+      var open = rh.open === j;
       var opts = R_SOUNDS.map(function (x) { return '<option value="' + x[0] + '"' + (x[0] === L.snd ? ' selected' : '') + '>' + x[1] + '</option>'; }).join('');
-      return '<div class="lay' + ((solo ? !L.solo : L.mute) ? ' dim' : '') + '" data-l="' + j + '">' +
-        '<div class="lay-top"><i class="sw l' + j + '"></i>' + top + '<span class="lay-name">' + layerName(L.n) + '</span></div>' +
-        '<div class="lay-bot"><select data-a="snd" aria-label="Sound for layer ' + (j + 1) + '">' + opts + '</select>' +
+      return '<div class="lay' + ((solo ? !L.solo : L.mute) ? ' dim' : '') + '" data-l="' + j + '" style="border-left-color:var(--l' + j + ')">' +
+        '<div class="lay-top">' + top +
         '<button class="mini" data-a="mute" aria-pressed="' + L.mute + '">Mute</button>' +
-        '<button class="mini" data-a="solo" aria-pressed="' + L.solo + '">Solo</button>' +
-        (j ? '<button class="mini" data-a="del" aria-label="Remove layer">&times;</button>' : '') + '</div></div>';
+        '<button class="mini" data-a="more" aria-expanded="' + open + '" aria-label="Sound, solo and remove">&hellip;</button></div>' +
+        '<div class="lay-name">' + layerName(L.n) + '</div>' +
+        (open ? '<div class="lay-more"><select data-a="snd" aria-label="Sound">' + opts + '</select>' +
+          '<button class="mini" data-a="solo" aria-pressed="' + L.solo + '">Solo</button>' +
+          (j ? '<button class="mini" data-a="del" aria-label="Remove rhythm">Remove</button>' : '') + '</div>' : '') +
+        '</div>';
     }).join('');
   }
   function rUITempo() {
@@ -2167,13 +2192,12 @@ svg .off { opacity: .3; }
   }
   function rUI() {
     rUITempo();
-    $('rhUnit').textContent = 'beats per minute. Each beat is a ' + DEN_NAME[rh.den] + ' note.';
     $('rhPlay').textContent = rh.running ? 'Stop' : 'Start';
     $('rhPlay').setAttribute('aria-pressed', String(rh.running));
-    if (!rh.running) $('rhStatus').textContent = '';
-    $('rhMeter').textContent = rh.beats + '/' + rh.den;
+    if (!rh.running) $('rhStatus').textContent = 'Tap Start to play';
     $('rhBeatsVal').textContent = rh.beats + (rh.beats === 1 ? ' beat' : ' beats');
     mark('rhDen', rh.den); mark('rhView', rh.view); mark('rhSpread', rh.spread ? 'on' : 'off');
+    $('rhNote').textContent = 'The tempo counts the ' + DEN_NAME[rh.den] + ' note. ' + rh.beats + '/' + rh.den + ' time.';
     var opts = groupOptions(rh.beats), cur = rh.group ? rh.group.join('+') : 'custom';
     $('rhGroup').innerHTML = opts.map(function (g) {
       return '<option value="' + g.join('+') + '"' + (g.join('+') === cur ? ' selected' : '') + '>' + groupLabel(g, rh.beats) + '</option>';
@@ -2255,9 +2279,10 @@ svg .off { opacity: .3; }
       if (!b || !box) return;
       var j = +box.dataset.l, L = rh.layers[j], a = b.dataset.a;
       if (!L) return;
-      if (a === 'mute') { L.mute = !L.mute; rUI(); rDraw(); rSave(); }
+      if (a === 'more') { rh.open = rh.open === j ? -1 : j; rUI(); }
+      else if (a === 'mute') { L.mute = !L.mute; rUI(); rDraw(); rSave(); }
       else if (a === 'solo') { L.solo = !L.solo; rUI(); rDraw(); rSave(); }
-      else if (a === 'del' && j > 0) rChange(function () { rh.layers.splice(j, 1); });
+      else if (a === 'del' && j > 0) rChange(function () { rh.layers.splice(j, 1); rh.open = -1; });
       else if ((a === 'inc' || a === 'dec') && j > 0) {
         rChange(function () { L.n = rclamp(L.n + (a === 'inc' ? 1 : -1), 1, 32); L.pat = basePat(L.n); });
       }
