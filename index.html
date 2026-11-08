@@ -153,6 +153,15 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
 .rv.warn { color: var(--warn); }
 .clear { min-height: 44px; border: 1px solid var(--line); border-radius: 10px; background: transparent; color: var(--ink); font: 500 15px var(--font-body); cursor: pointer; }
 .rep { border-radius: 8px; }
+.rtrace { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 4px; padding-bottom: 8px; }
+.rtrace svg { width: 100%; height: 44px; display: block; }
+.rtrace .zone { fill: var(--good); opacity: .2; }
+.rtrace .mid { stroke: var(--muted); stroke-width: 1; opacity: .5; vector-effect: non-scaling-stroke; }
+.rtrace .line { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.rtrace .lockline { stroke: var(--good); stroke-width: 2; stroke-dasharray: 3 3; vector-effect: non-scaling-stroke; }
+.rtrace small { font-size: 12px; color: var(--muted); }
+.rbar u { position: absolute; top: 0; width: 10px; height: 10px; margin-left: -5px; border-radius: 50%; border: 2px solid var(--muted); background: var(--surface); box-sizing: border-box; text-decoration: none; }
+.hold div.good { background: var(--good); }
 .rep[data-deg] { cursor: pointer; }
 .rep.now { background: var(--bg); outline: 2px solid var(--accent); outline-offset: 2px; }
 .guide-step { font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
@@ -314,6 +323,14 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
         <button data-v="minor" aria-pressed="false">Minor</button>
       </div>
     </div>
+    <div class="row" id="tOctRow">
+      <div class="label">Starting octave</div>
+      <div class="stepper">
+        <button id="tOctDown" aria-label="Octave down">&minus;</button>
+        <span id="tOctVal">Octave 4</span>
+        <button id="tOctUp" aria-label="Octave up">+</button>
+      </div>
+    </div>
     <div class="row" id="tDirRow">
       <div class="label">Direction</div>
       <div class="seg" id="dirSeg" role="group" aria-label="Direction">
@@ -347,8 +364,10 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
     <div class="guide-step" id="guideStep">&nbsp;</div>
     <div class="guide-text" id="guideText">&nbsp;</div>
     <div class="dots" id="guideDots"></div>
+    <div class="guide-step">How close to pure pitch</div>
     <div class="hold" aria-hidden="true"><div id="holdFill"></div></div>
     <p class="cap-msg" id="capMsg">&nbsp;</p>
+    <button class="clear" id="guideNext">Next note</button>
   </section>
 
   <div class="meter" id="meter">
@@ -360,6 +379,7 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
     <div>
       <div class="cents" id="cents">&nbsp;</div>
       <div class="verdict" id="verdict">&nbsp;</div>
+      <p class="pure" id="tBeat">&nbsp;</p>
       <p class="pure" id="tNote">&nbsp;</p>
     </div>
     <div>
@@ -392,7 +412,7 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
     <div class="label">Scale report</div>
     <div id="scaleRows"></div>
     <p class="hint" id="scaleSum"></p>
-    <p class="hint">Tap a row to retake that note.</p>
+    <p class="hint">Hollow dot: where you landed. Solid dot: where you settled. The line shows your pitch over time, the green band is within 5&cent;, and the dashed line marks when you locked in. Tap a row to retake that note.</p>
     <button class="clear" id="scaleClear">Start over</button>
   </section>
 
@@ -781,29 +801,65 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
   }
   function mean(a) { var t = 0; a.forEach(function (v) { t += v; }); return t / a.length; }
 
-  function repRow(label, sub, avg, n, deg, now) {
+  function repRow(label, sub, avg, n, deg, now, land, last) {
     var has = n > 0, c = has ? Math.max(-30, Math.min(30, avg)) : 0;
     var cls = !has ? '' : (Math.abs(avg) <= 5 ? 'good' : 'warn');
+    var lc = land === undefined ? null : Math.max(-30, Math.min(30, land));
     return '<div class="rep' + (now ? ' now' : '') + '"' + (deg !== undefined ? ' data-deg="' + deg + '"' : '') + '>' +
       '<div class="rn"><b>' + label + '</b><small>' + sub + '</small></div>' +
-      '<div class="rbar">' + (has ? '<i class="' + cls + '" style="left:' + (50 + c / 30 * 50) + '%"></i>' : '') + '</div>' +
-      '<div class="rv ' + cls + '">' + (has ? fmtCents(avg) : '–') + '</div></div>';
+      '<div class="rbar">' + (lc !== null && has ? '<u style="left:' + (50 + lc / 30 * 50) + '%"></u>' : '') +
+        (has ? '<i class="' + cls + '" style="left:' + (50 + c / 30 * 50) + '%"></i>' : '') + '</div>' +
+      '<div class="rv ' + cls + '">' + (has ? fmtCents(avg) : '–') + '</div>' +
+      (last ? '<div class="rtrace">' + traceSvg(last) + '<small>' + traceText(last, n) + '</small></div>' : '') + '</div>';
+  }
+
+  function traceSvg(t) {
+    var tr = t.trace, k = tr.length, pts = [], i;
+    for (i = 0; i < k; i++) {
+      var x = k > 1 ? 1 + i / (k - 1) * 198 : 100;
+      var y = 22 - Math.max(-30, Math.min(30, tr[i])) / 30 * 20;
+      pts.push(x.toFixed(1) + ',' + y.toFixed(1));
+    }
+    var lockX = t.lock !== null && t.dur > 0 ? 1 + Math.min(1, t.lock / t.dur) * 198 : null;
+    return '<svg viewBox="0 0 200 44" preserveAspectRatio="none" aria-hidden="true">' +
+      '<rect class="zone" x="0" y="' + (22 - 20 / 30 * 5).toFixed(1) + '" width="200" height="' + (2 * 20 / 30 * 5).toFixed(1) + '"/>' +
+      '<line class="mid" x1="0" y1="22" x2="200" y2="22"/>' +
+      (lockX !== null ? '<line class="lockline" x1="' + lockX.toFixed(1) + '" y1="2" x2="' + lockX.toFixed(1) + '" y2="42"/>' : '') +
+      '<polyline class="line" points="' + pts.join(' ') + '"/></svg>';
+  }
+  function traceText(t, n) {
+    var txt = 'Landed ' + fmtCents(t.land) + ' → settled ' + fmtCents(t.settled);
+    txt += t.lock === null ? ' · never locked in' : ' · locked in ' + t.lock.toFixed(1) + ' s';
+    if (n > 1) txt += ' · latest of ' + n + ' tries';
+    return txt;
   }
 
   function renderScaleRep() {
-    var shift = instById[s.inst].shift, html = '', played = [], good = 0, st = guideStep();
+    var shift = instById[s.inst].shift, html = '', st = guideStep(), latest = [];
     scaleDegs().forEach(function (d, i) {
-      var a = scaleRep[i] || [], avg = 0, sd = 0;
-      if (a.length) { avg = mean(a.map(function (c) { return c.d; })); sd = mean(a.map(function (c) { return c.sd; })); }
-      html += repRow(name(s.note + d[0] + shift), DEG[i] + (a.length ? ' ±' + Math.round(sd) : ''), avg, a.length, i, !!st && st.deg === i);
-      if (a.length) { played.push({ i: i, avg: avg }); if (Math.abs(avg) <= 5) good++; }
+      var a = scaleRep[i] || [], n = a.length, landA = 0, setA = 0, sdA = 0, last = null;
+      if (n) {
+        landA = mean(a.map(function (c) { return c.land; }));
+        setA = mean(a.map(function (c) { return c.settled; }));
+        sdA = mean(a.map(function (c) { return c.sd; }));
+        last = a[n - 1];
+        latest.push({ i: i, t: last });
+      }
+      html += repRow(name(s.note + d[0] + shift), DEG[i] + (n ? ' ±' + Math.round(sdA) : ''), setA, n, i, !!st && st.deg === i, landA, last);
     });
     $('scaleRows').innerHTML = html;
-    if (played.length >= 3) {
-      played.sort(function (p, q) { return Math.abs(q.avg) - Math.abs(p.avg); });
-      $('scaleSum').textContent = good + ' of ' + played.length + ' notes within 5¢. Furthest off: ' + DEG[played[0].i] + ' (' + fmtCents(played[0].avg) + ').';
+    if (latest.length >= 2) {
+      var locked = latest.filter(function (x) { return x.t.lock !== null; });
+      var never = latest.filter(function (x) { return x.t.lock === null; });
+      var txt = 'Locked in on ' + locked.length + ' of ' + latest.length + ' notes';
+      if (locked.length) {
+        locked.sort(function (p, q) { return q.t.lock - p.t.lock; });
+        txt += ', average ' + mean(locked.map(function (x) { return x.t.lock; })).toFixed(1) + ' s. Slowest: ' + DEG[locked[0].i] + ' (' + locked[0].t.lock.toFixed(1) + ' s).';
+      } else { txt += '.'; }
+      if (never.length) txt += ' Never settled: ' + never.map(function (x) { return DEG[x.i]; }).join(', ') + '.';
+      $('scaleSum').textContent = txt;
     } else {
-      $('scaleSum').textContent = 'The ± number shows how much the pitch wobbled while you held the note.';
+      $('scaleSum').textContent = 'Play a note, hold it and tune it in, then play the next one. It records where you landed, where you settled and how fast.';
     }
   }
 
@@ -831,62 +887,123 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
   }
 
   // ---------- guided scale ----------
-  var guide = { steps: [], i: 0, run: [], lastCap: null }, dirUp = true, capTimer = 0, HOLD = 18;
+  var guide = { steps: [], i: 0, att: null, cand: [], lastCap: null }, dirUp = true, capTimer = 0;
+  var LOCK_TOL = 5, MIN_FRAMES = 10;
 
+  function std(a) { var m = mean(a), t = 0; a.forEach(function (v) { t += (v - m) * (v - m); }); return Math.sqrt(t / a.length); }
   function stepLabel(st) { return st.oct ? 'Octave' : DEG[st.deg]; }
+  function stepSemi(st) { return scaleDegs()[st.deg][0] + (st.oct ? 12 : 0); }
   function guideStep() { return guide.steps[guide.i] || null; }
+  function noteLabel(semi) {
+    var midi = 12 * (s.octave + 1) + s.note + semi, shift = instById[s.inst].shift;
+    var sound = name(midi) + (Math.floor(midi / 12) - 1);
+    return shift === 0 ? sound : name(midi + shift) + ' (sounds ' + sound + ')';
+  }
+  function guideReset() { guide.att = null; guide.cand = []; }
   function guideStart() {
     var up = [0, 1, 2, 3, 4, 5, 6].map(function (d) { return { deg: d, oct: false }; });
     up.push({ deg: 0, oct: true });
     guide.steps = dirUp ? up : up.slice().reverse();
-    guide.i = 0; guide.run = []; guide.lastCap = null;
-    renderGuide(); renderScaleRep();
+    guide.i = 0; guide.lastCap = null; guideReset();
+    renderGuide();
   }
   function setCap(text, state) {
     var el = $('capMsg');
     el.textContent = text || ' ';
     el.className = 'cap-msg' + (state ? ' ' + state : '');
     clearTimeout(capTimer);
-    if (text) capTimer = setTimeout(function () { el.textContent = ' '; el.className = 'cap-msg'; }, 2800);
+    if (text) capTimer = setTimeout(function () { el.textContent = ' '; el.className = 'cap-msg'; }, 4500);
+  }
+  function setClose(dev) {
+    var el = $('holdFill');
+    el.style.width = dev === null ? '0%' : Math.max(0, 100 - Math.abs(dev) / 30 * 100) + '%';
+    el.className = dev !== null && Math.abs(dev) <= LOCK_TOL ? 'good' : '';
   }
   function renderGuide() {
-    var n = guide.steps.length, st = guideStep(), html = '', k, shift = instById[s.inst].shift;
+    var n = guide.steps.length, st = guideStep(), html = '', k;
     for (k = 0; k < n; k++) html += '<i class="' + (k < guide.i ? 'done' : k === guide.i ? 'cur' : '') + '"></i>';
     $('guideDots').innerHTML = html;
     if (!st) {
       $('guideStep').textContent = 'Finished';
       $('guideText').textContent = 'Done. Tap a note below to retake it, or tap Start over.';
     } else {
-      var d = scaleDegs()[st.deg];
-      $('guideStep').textContent = n > 1 ? 'Step ' + (guide.i + 1) + ' of ' + n : 'Retake';
-      $('guideText').textContent = (listening ? 'Play the ' : 'Press Start listening, then play the ') + stepLabel(st) + ': ' + name(s.note + d[0] + shift);
+      $('guideStep').textContent = (n > 1 ? 'Step ' + (guide.i + 1) + ' of ' + n : 'Retake') + (listening ? ' \u00B7 hold the note and tune it in, then play the next' : '');
+      $('guideText').textContent = (listening ? 'Play the ' : 'Press Start listening, then play the ') + stepLabel(st) + ': ' + noteLabel(stepSemi(st));
     }
-    $('holdFill').style.width = '0%';
+    $('guideNext').hidden = !st || n < 2;
+    setClose(null);
     renderScaleRep();
   }
-  function guideFeed(f) {
+
+  function guideFeed(f, ts) {
     var st = guideStep();
     if (!st) return;
-    var a = 1200 * Math.log(f / s.a4) / Math.LN2, run = guide.run;
-    if (run.length && Math.abs(a - median(run)) > 35) run = guide.run = [];   // a different note: start over
-    run.push(a);
-    var med = median(run), rootAbs = 1200 * Math.log(baseFreq() / s.a4) / Math.LN2;
-    var dev = dd(mod1200(med - rootAbs), justCents(scaleDegs()[st.deg]));
-    var ready = Math.abs(dev) <= 60 && (guide.lastCap === null || Math.abs(med - guide.lastCap) >= 60);
-    $('holdFill').style.width = ready ? Math.min(100, run.length / HOLD * 100) + '%' : '0%';
-    if (ready && run.length >= HOLD) capture(st, run.slice(3));
+    var a = 1200 * Math.log(f / s.a4) / Math.LN2, rootAbs = 1200 * Math.log(baseFreq() / s.a4) / Math.LN2;
+    var dev = dd(mod1200(a - rootAbs), justCents(scaleDegs()[st.deg]));
+    var onTarget = Math.abs(dev) <= 60;
+    var away = guide.lastCap === null || Math.abs(a - guide.lastCap) >= 60;
+    var at = guide.att;
+    if (!at) {
+      // waiting for a note to start: a few steady frames on the target note
+      var c = guide.cand;
+      if (onTarget && away) {
+        if (c.length && Math.abs(a - c[c.length - 1].a) > 35) c = guide.cand = [];
+        c.push({ a: a, dev: dev, t: ts });
+        setClose(dev);
+        if (c.length >= 4) {
+          guide.att = { t0: c[0].t, f: c.map(function (x) { return { t: x.t - c[0].t, dev: x.dev, a: x.a }; }), miss: 0 };
+          guide.cand = [];
+        }
+      } else { guide.cand = []; setClose(null); }
+      return;
+    }
+    if (!onTarget) {                          // moved to another note: the attempt is over
+      at.miss++;
+      if (at.miss >= 3) finishAttempt(false);
+      return;
+    }
+    at.miss = 0;
+    at.f.push({ t: ts - at.t0, dev: dev, a: a });
+    setClose(dev);
   }
-  function capture(st, vals) {
-    var med = median(vals), sd = 0, rootAbs = 1200 * Math.log(baseFreq() / s.a4) / Math.LN2;
-    var m = mean(vals);
-    vals.forEach(function (v) { sd += (v - m) * (v - m); });
-    sd = Math.sqrt(sd / vals.length);
-    var dev = dd(mod1200(med - rootAbs), justCents(scaleDegs()[st.deg]));
-    (scaleRep[st.deg] = scaleRep[st.deg] || []).push({ d: dev, sd: sd });
-    guide.lastCap = med; guide.i++; guide.run = [];
-    var shift = instById[s.inst].shift;
-    setCap('Captured ' + name(s.note + scaleDegs()[st.deg][0] + shift) + ': ' + fmtCents(dev) + '  ±' + Math.round(sd), Math.abs(dev) <= 5 ? 'good' : 'warn');
+
+  // Close out the current note: where it landed, where it settled, how long it took to lock in.
+  function finishAttempt(manual) {
+    var at = guide.att, st = guideStep();
+    guideReset();
+    if (!at || !st || at.f.length < MIN_FRAMES) return false;
+    var fr = at.f, n = fr.length, shift = instById[s.inst].shift, i, j;
+    var devs = fr.map(function (x) { return x.dev; });
+    var land = median(devs.slice(0, Math.min(8, n)));
+    var tail = devs.slice(-Math.min(15, Math.max(5, Math.floor(n * 0.4))));
+    var settled = median(tail), sd = std(tail);
+    var sm = devs.map(function (_, k) { return median(devs.slice(Math.max(0, k - 2), k + 3)); });
+    var lock = null;
+    for (i = 0; i + 8 < n && lock === null; i++) {
+      var inside = true;
+      for (j = i; j <= i + 8; j++) { if (Math.abs(sm[j]) > LOCK_TOL) { inside = false; break; } }
+      if (inside) lock = fr[i].t / 1000;
+    }
+    var trace = [], K = Math.min(40, n);
+    for (i = 0; i < K; i++) trace.push(median(devs.slice(Math.floor(i * n / K), Math.max(Math.floor(i * n / K) + 1, Math.floor((i + 1) * n / K)))));
+    var dur = fr[n - 1].t / 1000;
+    (scaleRep[st.deg] = scaleRep[st.deg] || []).push({ land: land, settled: settled, sd: sd, lock: lock, trace: trace, dur: dur });
+    guide.lastCap = median(fr.slice(-Math.min(15, n)).map(function (x) { return x.a; }));
+    guide.i++;
+    var nm = name(s.note + scaleDegs()[st.deg][0] + shift);
+    setCap(nm + ': landed ' + fmtCents(land) + ', ' + (lock === null ? 'ended at ' : 'settled ') + fmtCents(settled) +
+           (lock === null ? ', never locked within 5¢' : ', locked in ' + lock.toFixed(1) + ' s'),
+           lock !== null && Math.abs(settled) <= LOCK_TOL ? 'good' : 'warn');
     try { if (navigator.vibrate) navigator.vibrate(30); } catch (e) {}
+    renderGuide();
+    return true;
+  }
+  function guideNext() {
+    if (!guideStep()) return;
+    if (guide.att && finishAttempt(true)) return;
+    guideReset();
+    guide.i++;
+    setCap('');
     renderGuide();
   }
 
@@ -926,7 +1043,8 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
       b.children[1].textContent = DEG[i];
       b.setAttribute('aria-pressed', i === tDeg ? 'true' : 'false');
     });
-    if (changed && tMode === 'scale') guideStart(); else renderScaleRep();
+    $('tOctVal').textContent = 'Octave ' + s.octave;
+    if (changed && tMode === 'scale') guideStart(); else if (tMode === 'scale') renderGuide(); else renderScaleRep();
     renderTend();
   }
 
@@ -959,16 +1077,18 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
       if (tHist.length > 5) tHist.shift();
       lastGood = ts;
       if (tMode === 'mine') segFeed(f);
-      else if (tMode === 'scale') guideFeed(f);
+      else if (tMode === 'scale') guideFeed(f, ts);
       // smooth in the pitch domain; snap straight to a new note when the pitch jumps
       var l = 1200 * Math.log(median(tHist) / s.a4) / Math.LN2;
       if (smooth === null || Math.abs(l - smooth) > 50) smooth = l;
       else smooth += 0.35 * (l - smooth);
       tShow(s.a4 * Math.pow(2, smooth / 1200));
     } else {
-      if (ts - lastGood > 250) {
-        segEnd();
-        if (tMode === 'scale') { guide.run = []; $('holdFill').style.width = '0%'; }
+      if (ts - lastGood > 250) segEnd();
+      if (ts - lastGood > 350 && tMode === 'scale') {   // the note was released
+        if (guide.att) finishAttempt(false);
+        guide.cand = [];
+        setClose(null);
       }
       if (ts - lastGood > 700) {
         tHist = [];
@@ -979,7 +1099,7 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
   }
 
   function tShow(f) {
-    var shift = instById[s.inst].shift, big, line1, tgt, cents, note = '';
+    var shift = instById[s.inst].shift, big, line1, tgt, cents, note = '', beat = '';
     if (tMode === 'target' || tMode === 'scale') {
       var root = baseFreq(), l = 1200 * Math.log(f / root) / Math.LN2, pcC = mod1200(l);
       var degs = scaleDegs(), gst = tMode === 'scale' ? guideStep() : null;
@@ -990,6 +1110,8 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
       big = name(s.note + d[0] + shift);
       line1 = (gst ? stepLabel(gst) : DEG[deg]) + (shift !== 0 ? ' · sounds ' + name(s.note + d[0]) : '');
       var off = tc - 100 * d[0];
+      var den = d[1][1], beats = den * Math.abs(f - tgt);
+      beat = den > 5 ? '' : (beats < 0.3 ? 'No beating against the drone' : 'Beating against the drone: about ' + beats.toFixed(1) + ' per second');
       note = Math.abs(off) < 0.5 ? 'The pure ' + DEG[deg] + ' matches piano pitch' : 'The pure ' + DEG[deg] + ' sits ' + fmtCents(off) + ' from piano pitch';
     } else {
       var n = 12 * Math.log(f / s.a4) / Math.LN2 + 69, nearest = Math.round(n);
@@ -1004,6 +1126,7 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
     $('tHz').textContent = f.toFixed(1) + ' Hz';
     $('tTarget').textContent = 'target ' + tgt.toFixed(1);
     $('tNote').textContent = note || ' ';
+    $('tBeat').textContent = beat || ' ';
     $('cents').textContent = (rc > 0 ? '+' : rc < 0 ? MINUS : '') + Math.abs(rc).toFixed(1) + '¢';
     var state = Math.abs(cents) <= 5 ? 'good' : 'warn';
     $('verdict').textContent = state === 'good' ? 'In tune' : (tMode === 'scale' && guideStep() && Math.abs(cents) > 60 ? 'Play ' + big : (cents > 0 ? 'Sharp' : 'Flat'));
@@ -1023,6 +1146,7 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
     $('noteBig').textContent = '–';
     $('concert').innerHTML = '&nbsp;';
     $('tNote').innerHTML = '&nbsp;';
+    $('tBeat').innerHTML = '&nbsp;';
     $('tHz').innerHTML = '&nbsp;';
     $('tTarget').innerHTML = '&nbsp;';
     $('cents').innerHTML = '&nbsp;';
@@ -1030,8 +1154,8 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
     $('tcap').textContent = listening ? 'Play a note' : 'Not listening';
     var gs = tMode === 'scale' ? guideStep() : null;
     if (gs && listening) {
-      var gd = scaleDegs()[gs.deg], gsh = instById[s.inst].shift;
-      $('noteBig').textContent = name(s.note + gd[0] + gsh);
+      var gsh = instById[s.inst].shift;
+      $('noteBig').textContent = name(s.note + stepSemi(gs) + gsh);
       $('concert').textContent = stepLabel(gs);
       $('tcap').textContent = 'Play this note';
     }
@@ -1086,7 +1210,8 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
     if (tctx) tctx.close();
     if (tWake) { tWake.release().catch(function () {}); tWake = null; }
     segEnd();
-    guide.run = [];
+    if (tMode === 'scale') finishAttempt(false);
+    guideReset();
     $('levelFill').style.width = '0%';
     $('go').setAttribute('aria-pressed', 'false');
     $('go').textContent = 'Start listening';
@@ -1149,10 +1274,13 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
     if (!r || tMode !== 'scale' || r.dataset.deg === undefined) return;
     var deg = +r.dataset.deg;
     scaleRep[deg] = [];
-    guide.steps = [{ deg: deg, oct: false }]; guide.i = 0; guide.run = []; guide.lastCap = null;
+    guide.steps = [{ deg: deg, oct: false }]; guide.i = 0; guide.lastCap = null; guideReset();
     renderGuide();
     setCap('');
   });
+  $('guideNext').addEventListener('click', guideNext);
+  $('tOctDown').addEventListener('click', function () { s.octave = Math.max(1, s.octave - 1); render(); apply(); });
+  $('tOctUp').addEventListener('click', function () { s.octave = Math.min(6, s.octave + 1); render(); apply(); });
   $('tDroneBtn').addEventListener('click', function () { setPlaying(!s.playing); render(); });
   $('tSoundSeg').addEventListener('click', function (e) {
     var b = e.target.closest('button');
