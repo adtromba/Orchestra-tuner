@@ -575,7 +575,7 @@ main { padding-bottom: 120px; }
   </section>
   </div>
 
-  <p class="hint" id="buildTag" style="text-align:center;opacity:.6">Version: Nov 8l, Climb: 3.5 s within 5 cents, ping when in tune</p>
+  <p class="hint" id="buildTag" style="text-align:center;opacity:.6">Version: Nov 8m, Climb plays in your chosen octave, low notes included</p>
   <p class="msg" id="msg">Tap Start, allow the microphone, then play one note at a time. The reading is in cents: 100 cents is one half step.</p>
 
   </div>
@@ -1272,10 +1272,12 @@ main { padding-bottom: 120px; }
     if (!st || !listening || tMode !== 'climb') return;
     audioReady().then(function () {
       if (guideStep() !== st || climbV.length || !listening || tMode !== 'climb') return;
-      var root = baseFreq(); while (root < 200) root *= 2;
+      // plays in the register you picked (Starting octave): the root is the drone, the note sits on top at its true pitch
+      var root = baseFreq();
       var r = SCALES[s.scale][st.deg][1], f = root * r[0] / r[1] * (st.oct ? 2 : 1), t = ctx.currentTime;
-      [[root / 2, 0.55], [f, 1.1]].forEach(function (x) {
-        var o = ctx.createOscillator(), fl = ctx.createBiquadFilter(), g = ctx.createGain(), lv = Math.max(0.05, s.vol) * 0.3 * x[1];
+      [[root, 0.6], [f, 1.1]].forEach(function (x) {
+        var boost = x[0] < 150 ? 1 + (150 - x[0]) / 100 : 1;   // low notes sound quieter, so they get a lift
+        var o = ctx.createOscillator(), fl = ctx.createBiquadFilter(), g = ctx.createGain(), lv = Math.max(0.05, s.vol) * 0.3 * x[1] * Math.min(boost, 2);
         o.type = 'sawtooth'; o.frequency.value = x[0];
         fl.type = 'lowpass'; fl.frequency.value = 2600;
         g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(lv, t + 0.06);
