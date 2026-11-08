@@ -113,6 +113,9 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
 .note .big { font-family: var(--font-display); font-size: 88px; line-height: 1; font-weight: 500; min-width: 1.2em; }
 .note .side { text-align: right; font-family: var(--font-display); color: var(--muted); font-size: 16px; font-variant-numeric: tabular-nums; }
 .cents { text-align: center; font-family: var(--font-display); font-size: 44px; font-weight: 500; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.zonebar { text-align: center; font: 700 30px var(--font-body); letter-spacing: .06em; padding: 12px; border-radius: 12px; background: var(--line); color: var(--muted); }
+.zonebar.on { background: var(--good); color: #061a0d; }
+.meter.zone-on { border-color: var(--good); box-shadow: 0 0 0 4px var(--good); }
 .verdict { text-align: center; font-size: 18px; font-weight: 600; min-height: 26px; color: var(--muted); }
 .state-good .cents, .state-good .verdict { color: var(--good); }
 .state-warn .cents, .state-warn .verdict { color: var(--warn); }
@@ -486,6 +489,13 @@ main { padding-bottom: 120px; }
         <button data-v="down" aria-pressed="false">Down</button>
       </div>
     </div>
+    <div class="row" id="tHumRow" hidden>
+      <div class="label">Steady tone while in tune</div>
+      <div class="seg" id="humSeg" role="group" aria-label="Steady tone while in tune">
+        <button data-v="on" aria-pressed="true">On</button>
+        <button data-v="off" aria-pressed="false">Off</button>
+      </div>
+    </div>
     <div class="row" id="tDegRow">
       <div class="label">The note I am playing</div>
       <div class="degrees" id="tDegs" role="group" aria-label="Scale note"></div>
@@ -518,6 +528,7 @@ main { padding-bottom: 120px; }
   </section>
 
   <div class="meter" id="meter">
+    <div class="zonebar" id="zoneBar" hidden>OFF</div>
     <div class="cap" id="tcap">Play a note</div>
     <div class="note">
       <div class="big" id="noteBig">&ndash;</div>
@@ -575,7 +586,7 @@ main { padding-bottom: 120px; }
   </section>
   </div>
 
-  <p class="hint" id="buildTag" style="text-align:center;opacity:.6">Version: Nov 8m, Climb plays in your chosen octave, low notes included</p>
+  <p class="hint" id="buildTag" style="text-align:center;opacity:.6">Version: Nov 8n, Climb: clear on/off (green banner, steady tone, drift-out blip)</p>
   <p class="msg" id="msg">Tap Start, allow the microphone, then play one note at a time. The reading is in cents: 100 cents is one half step.</p>
 
   </div>
@@ -1287,13 +1298,13 @@ main { padding-bottom: 120px; }
     });
   }
   // A short high ping the moment you land inside the window, and a two-note chime when the note is done
-  function ping(notes) {
+  function ping(notes, amp) {
     if (!ctx) return;
     var t0 = ctx.currentTime + 0.01;
     notes.forEach(function (fr, k) {
       var o = ctx.createOscillator(), g = ctx.createGain(), t = t0 + k * 0.11;
       o.type = 'sine'; o.frequency.value = fr;
-      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(Math.max(0.2, s.vol) * 0.5, t + 0.005); g.gain.exponentialRampToValueAtTime(0.001, t + 0.16);
+      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(Math.max(0.2, s.vol) * 0.5 * (amp || 1), t + 0.005); g.gain.exponentialRampToValueAtTime(0.001, t + 0.16);
       o.connect(g); g.connect(ctx.destination); o.start(t); o.stop(t + 0.2);
     });
   }
@@ -1302,6 +1313,37 @@ main { padding-bottom: 120px; }
     el.style.width = Math.round(Math.max(0, Math.min(1, frac)) * 100) + '%';
     el.className = good ? 'good' : '';
   }
+  // On / off: bright green IN TUNE banner, a steady soft tone while you are in the zone, a falling blip when you leave it
+  var climbHum = true, humV = null;
+  function humOn() {
+    if (!climbHum || humV || !ctx) return;
+    var o = ctx.createOscillator(), g = ctx.createGain(), t = ctx.currentTime;
+    o.type = 'sine'; o.frequency.value = 1760;
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(Math.max(0.15, s.vol) * 0.12, t + 0.02);
+    o.connect(g); g.connect(ctx.destination); o.start(t);
+    humV = { o: o, g: g };
+  }
+  function humOff() {
+    if (!humV) return;
+    var t = ctx.currentTime, h = humV;
+    humV = null;
+    h.g.gain.cancelScheduledValues(t); h.g.gain.setTargetAtTime(0, t, 0.012);
+    try { h.o.stop(t + 0.1); } catch (e) {}
+  }
+  function zoneUI() {
+    var show = tMode === 'climb' && listening && !cin.on && !!guideStep();
+    $('zoneBar').hidden = !show;
+    $('zoneBar').textContent = climb.locked ? 'IN TUNE' : 'OFF';
+    $('zoneBar').classList.toggle('on', climb.locked);
+    $('meter').classList.toggle('zone-on', show && climb.locked);
+  }
+  function zone(on, quiet) {
+    if (climb.locked === on) return;
+    climb.locked = on;
+    if (on) { ping([2093]); humOn(); }
+    else { humOff(); if (!quiet) ping([740, 523], 0.6); }
+    zoneUI();
+  }
   function climbFeed(f, ts) {
     var st = guideStep();
     if (!st) return;
@@ -1309,10 +1351,10 @@ main { padding-bottom: 120px; }
     if (Math.abs(dev) <= CLIMB_TOL) {
       if (climb.last && ts - climb.last < 200) climb.hold += Math.min(ts - climb.last, 100);
       climb.last = ts; climb.out = 0;
-      if (!climb.locked) { climb.locked = true; ping([2093]); }
+      zone(true);
       setHold(climb.hold / CLIMB_HOLD, true);
       if (climb.hold >= CLIMB_HOLD) {
-        climb.hold = 0; climb.last = 0; climb.locked = false;
+        climb.hold = 0; climb.last = 0; zone(false, true);
         ping([1568, 2349]);
         guide.i++;
         renderGuide();
@@ -1322,13 +1364,15 @@ main { padding-bottom: 120px; }
     } else {
       climb.last = ts;
       if (!climb.out) climb.out = ts;
-      if (ts - climb.out > 350) { climb.hold = 0; climb.locked = false; }
+      if (ts - climb.out > 150) zone(false);
+      if (ts - climb.out > 350) climb.hold = 0;
       setHold(climb.hold / CLIMB_HOLD, false);
     }
     updateStepLine();
   }
   function climbSilence(ts) {
-    if (ts - lastGood > 350) { climb.hold = 0; climb.last = 0; climb.out = 0; climb.locked = false; setHold(0, false); }
+    if (ts - lastGood > 150) zone(false);
+    if (ts - lastGood > 350) { climb.hold = 0; climb.last = 0; climb.out = 0; setHold(0, false); }
   }
   function beginCount() {
     countIn(function () { if (tMode === 'climb') climbTone(guideStep()); renderGuide(); });
@@ -1362,7 +1406,7 @@ main { padding-bottom: 120px; }
     up.push({ deg: 0, oct: true });
     guide.steps = dirUp ? up : up.slice().reverse();
     guide.i = 0; guideReset();
-    climb.hold = 0; climb.last = 0; climb.out = 0; climb.locked = false;
+    climb.hold = 0; climb.last = 0; climb.out = 0; zone(false, true);
     renderGuide();
     if (tMode === 'climb' && listening && !cin.on) climbTone(guideStep());
   }
@@ -1404,6 +1448,7 @@ main { padding-bottom: 120px; }
     else $('guideText').textContent = (listening ? 'Play the ' : 'Press Start listening, then play the ') + stepLabel(st) + ': ' + noteLabel(st);
     updateStepLine();
     if (tMode === 'climb') setHold(climb.hold / CLIMB_HOLD, false); else setClose(null);
+    zoneUI();
     renderScaleRep();
   }
 
@@ -1568,6 +1613,8 @@ main { padding-bottom: 120px; }
     if (tMode !== 'scale') hearStop();
     $('guideCard').hidden = !guided();
     $('tDirRow').hidden = !guided();
+    $('tHumRow').hidden = tMode !== 'climb';
+    if (tMode !== 'climb') zone(false, true);
     if (tMode !== 'climb') climbOff();
     if (!guided()) cinStop();
     $('modeHint').textContent = HINTS[tMode];
@@ -1730,7 +1777,7 @@ main { padding-bottom: 120px; }
     cinStop(); climbOff();
     if (tMode === 'scale') guideFinish();
     guideReset();
-    climb.hold = 0; climb.last = 0; climb.out = 0;
+    climb.hold = 0; climb.last = 0; climb.out = 0; zone(false, true); zoneUI();
     $('levelFill').style.width = '0%';
     $('go').setAttribute('aria-pressed', 'false');
     $('go').textContent = 'Start listening';
@@ -1738,6 +1785,10 @@ main { padding-bottom: 120px; }
     renderGuide();
   }
 
+  $('humSeg').addEventListener('click', function (e) {
+    var b = e.target.closest('button');
+    if (b) { climbHum = b.dataset.v === 'on'; mark('humSeg', b.dataset.v); if (!climbHum) humOff(); else if (climb.locked) humOn(); }
+  });
   $('go').addEventListener('click', function () { if (listening) tStop(); else tStart(); });
   document.addEventListener('visibilitychange', function () {
     if (document.visibilityState === 'visible' && listening && navigator.wakeLock && !tWake) {
