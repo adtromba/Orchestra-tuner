@@ -597,7 +597,7 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
     var rms = 0, i, tau;
     for (i = 0; i < 2 * W; i++) rms += x[i] * x[i];
     rms = Math.sqrt(rms / (2 * W));
-    if (rms < 0.01) return -1;
+    if (rms < 0.002) return -1;   // quiet-room gate: about 5x more sensitive than before
 
     yd[0] = 1;
     var running = 0;
@@ -697,7 +697,7 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
       return;
     }
     navigator.mediaDevices.getUserMedia({
-      audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+      audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: true }
     }).then(function (st) {
       tStream = st;
       var AC = window.AudioContext || window.webkitAudioContext;
