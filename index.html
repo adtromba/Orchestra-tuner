@@ -139,6 +139,20 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
 .tabs button { min-height: 48px; font-size: 16px; font-weight: 600; }
 .panel { display: flex; flex-direction: column; gap: 16px; }
 .panel[hidden] { display: none; }
+[hidden] { display: none !important; }
+.rep { display: grid; grid-template-columns: 76px 1fr 56px; align-items: center; gap: 12px; padding: 6px 0; }
+.rn b { font: 500 17px var(--font-display); display: block; line-height: 1.1; }
+.rn small { font-size: 12px; color: var(--muted); }
+.rbar { position: relative; height: 10px; border-radius: 5px; background: var(--line); }
+.rbar::before { content: ""; position: absolute; left: 50%; top: -3px; width: 2px; height: 16px; margin-left: -1px; background: var(--muted); opacity: .6; }
+.rbar i { position: absolute; top: -3px; width: 8px; height: 16px; margin-left: -4px; border-radius: 4px; background: var(--muted); }
+.rbar i.good { background: var(--good); }
+.rbar i.warn { background: var(--warn); }
+.rv { font-family: var(--font-display); font-size: 15px; text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); }
+.rv.good { color: var(--good); }
+.rv.warn { color: var(--warn); }
+.clear { min-height: 44px; border: 1px solid var(--line); border-radius: 10px; background: transparent; color: var(--ink); font: 500 15px var(--font-body); cursor: pointer; }
+.pure { margin: 0; text-align: center; font-size: 14px; color: var(--muted); min-height: 20px; }
 @media (prefers-reduced-motion: reduce) { .bar .needle { transition: none; } }
 </style>
 </head>
@@ -260,6 +274,37 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
   </div>
 
   <div class="panel" id="panel-tuner" hidden>
+  <section class="card">
+    <div class="row">
+      <div class="label">Mode</div>
+      <div class="seg" id="modeSeg" role="group" aria-label="Tuner mode">
+        <button data-v="notes" aria-pressed="true">Notes</button>
+        <button data-v="target" aria-pressed="false">Target</button>
+        <button data-v="scale" aria-pressed="false">Scale</button>
+        <button data-v="mine" aria-pressed="false">My notes</button>
+      </div>
+      <p class="hint" id="modeHint"></p>
+    </div>
+  </section>
+
+  <section class="card" id="tOpts" hidden>
+    <div class="row">
+      <label class="label" for="tKey">Key (root note)</label>
+      <select id="tKey"></select>
+    </div>
+    <div class="row">
+      <div class="label">Scale</div>
+      <div class="seg" id="tScaleSeg" role="group" aria-label="Scale">
+        <button data-v="major" aria-pressed="true">Major</button>
+        <button data-v="minor" aria-pressed="false">Minor</button>
+      </div>
+    </div>
+    <div class="row" id="tDegRow">
+      <div class="label">The note I am playing</div>
+      <div class="degrees" id="tDegs" role="group" aria-label="Scale note"></div>
+    </div>
+  </section>
+
   <div class="meter" id="meter">
     <div class="cap" id="tcap">Play a note</div>
     <div class="note">
@@ -269,6 +314,7 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
     <div>
       <div class="cents" id="cents">&nbsp;</div>
       <div class="verdict" id="verdict">&nbsp;</div>
+      <p class="pure" id="tNote">&nbsp;</p>
     </div>
     <div>
       <div class="bar" id="bar">
@@ -296,6 +342,20 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
   </div>
 
   <button class="go" id="go" aria-pressed="false">Start listening</button>
+  <section class="card" id="scaleCard" hidden>
+    <div class="label">Scale report</div>
+    <div id="scaleRows"></div>
+    <p class="hint" id="scaleSum"></p>
+    <button class="clear" id="scaleClear">Clear report</button>
+  </section>
+
+  <section class="card" id="tendCard" hidden>
+    <div class="label">My tendencies</div>
+    <div id="tendRows"></div>
+    <p class="hint" id="tendSum"></p>
+    <button class="clear" id="tendClear">Clear saved results</button>
+  </section>
+
   <p class="msg" id="msg">Tap Start, allow the microphone, then play one note at a time. The reading is in cents: 100 cents is one half step.</p>
 
   </div>
@@ -509,6 +569,9 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
     mark('soundSeg', s.sound);
     mark('tuningSeg', s.tuning);
     mark('scaleSeg', s.scale);
+    mark('tScaleSeg', s.scale);
+    $('tKey').value = String(s.note);
+    tRenderOpts();
     mark('waveSeg', s.wave);
     mark('refSeg', s.a4);
     $('a4').value = s.a4;
@@ -642,6 +705,132 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
     return t[Math.floor(t.length / 2)];
   }
 
+  // ---------- modes: notes, target, scale, my notes ----------
+  var tMode = 'notes', tDeg = 0, seg = null, scaleRep = {}, repKey = '', tend = {}, tendInst = '';
+  var HINTS = {
+    notes:  'Shows the nearest note and how many cents sharp or flat you are against piano pitch.',
+    target: 'Pick the note you are playing. The meter shows how far you are from its pure (just) pitch over the key.',
+    scale:  'Play the scale slowly, about a second per note. The report shows each note’s average against pure pitch.',
+    mine:   'Play a chromatic scale slowly. The chart saves which notes you tend to play sharp or flat on this instrument.'
+  };
+
+  function mod1200(x) { return ((x % 1200) + 1200) % 1200; }
+  function dd(a, b) { return mod1200(a - b + 600) - 600; }
+  function scaleDegs() { return SCALES[s.scale].slice(0, 7); }
+  function justCents(d) { return 1200 * Math.log(d[1][0] / d[1][1]) / Math.LN2; }
+  function nearestDeg(pcC) {
+    var best = 0, bd = 1e9;
+    scaleDegs().forEach(function (d, i) {
+      var x = Math.abs(dd(pcC, justCents(d)));
+      if (x < bd) { bd = x; best = i; }
+    });
+    return best;
+  }
+  function mean(a) { var t = 0; a.forEach(function (v) { t += v; }); return t / a.length; }
+
+  function repRow(label, sub, avg, n) {
+    var has = n > 0, c = has ? Math.max(-30, Math.min(30, avg)) : 0;
+    var cls = !has ? '' : (Math.abs(avg) <= 5 ? 'good' : 'warn');
+    return '<div class="rep"><div class="rn"><b>' + label + '</b><small>' + sub + '</small></div>' +
+      '<div class="rbar">' + (has ? '<i class="' + cls + '" style="left:' + (50 + c / 30 * 50) + '%"></i>' : '') + '</div>' +
+      '<div class="rv ' + cls + '">' + (has ? fmtCents(avg) : '–') + '</div></div>';
+  }
+
+  function renderScaleRep() {
+    var shift = instById[s.inst].shift, html = '', played = [], good = 0;
+    scaleDegs().forEach(function (d, i) {
+      var a = scaleRep[i] || [], avg = a.length ? mean(a) : 0;
+      html += repRow(name(s.note + d[0] + shift), DEG[i], avg, a.length);
+      if (a.length) { played.push({ i: i, avg: avg }); if (Math.abs(avg) <= 5) good++; }
+    });
+    $('scaleRows').innerHTML = html;
+    if (played.length >= 3) {
+      played.sort(function (p, q) { return Math.abs(q.avg) - Math.abs(p.avg); });
+      $('scaleSum').textContent = good + ' of ' + played.length + ' notes within 5¢. Furthest off: ' + DEG[played[0].i] + ' (' + fmtCents(played[0].avg) + ').';
+    } else {
+      $('scaleSum').textContent = 'Play the scale to fill in the report. Bars sit in the middle when a note is pure.';
+    }
+  }
+
+  function loadTend() {
+    tend = {};
+    try {
+      var r = JSON.parse(localStorage.getItem('orchestra-tend-' + s.inst) || '{}');
+      if (r && r.d) tend = r.d;
+    } catch (e) {}
+  }
+  function saveTend() { try { localStorage.setItem('orchestra-tend-' + s.inst, JSON.stringify({ d: tend })); } catch (e) {} }
+
+  function renderTend() {
+    var shift = instById[s.inst].shift, html = '', total = 0, off = 1200 * Math.log(s.a4 / 440) / Math.LN2, i, k;
+    for (i = 0; i < 12; i++) {
+      var sum = 0, n = 0;
+      for (k in tend) { if (((+k % 12) + 12) % 12 === i) { sum += tend[k][0]; n += tend[k][1]; } }
+      total += n;
+      html += repRow(name(i + shift), n ? n + (n === 1 ? ' note' : ' notes') : 'not played', n ? sum / n - off : 0, n);
+    }
+    $('tendRows').innerHTML = html;
+    $('tendSum').textContent = total
+      ? 'Cents from piano pitch at A=' + s.a4 + '. Notes are grouped by name, across octaves. Saved on this device for ' + instById[s.inst].name + '.'
+      : 'Nothing saved yet. Play a chromatic scale slowly, holding each note about a second.';
+  }
+
+  function segFeed(f) {
+    var a = 1200 * Math.log(f / s.a4) / Math.LN2;
+    if (seg && Math.abs(a - seg.ref) > 40) segEnd();
+    if (!seg) seg = { ref: a, vals: [] };
+    seg.vals.push(a);
+    seg.ref = median(seg.vals.slice(-7));
+  }
+  function segEnd() {
+    if (!seg) return;
+    var v = seg.vals;
+    seg = null;
+    if (v.length < 12) return;             // too short to count as a held note
+    commit(median(v.slice(4)));            // skip the first moments of the attack
+  }
+  function commit(a) {
+    if (tMode === 'scale') {
+      var rootAbs = 1200 * Math.log(baseFreq() / s.a4) / Math.LN2;
+      var pcC = mod1200(a - rootAbs), deg = nearestDeg(pcC);
+      (scaleRep[deg] = scaleRep[deg] || []).push(dd(pcC, justCents(scaleDegs()[deg])));
+      renderScaleRep();
+    } else if (tMode === 'mine') {
+      var a440 = a + 1200 * Math.log(s.a4 / 440) / Math.LN2;   // stored against A=440 so a changed reference still reads correctly
+      var nn = a440 / 100 + 69, m = Math.round(nn);
+      var e = tend[m] || (tend[m] = [0, 0]);
+      e[0] += (nn - m) * 100; e[1] += 1;
+      saveTend(); renderTend();
+    }
+  }
+
+  function tRenderOpts() {
+    var shift = instById[s.inst].shift;
+    var key = s.note + ':' + s.scale;
+    if (key !== repKey) { repKey = key; scaleRep = {}; }
+    if (tendInst !== s.inst) { tendInst = s.inst; loadTend(); }
+    Array.prototype.forEach.call($('tDegs').children, function (b, i) {
+      var d = scaleDegs()[i];
+      b.children[0].textContent = name(s.note + d[0] + shift);
+      b.children[1].textContent = DEG[i];
+      b.setAttribute('aria-pressed', i === tDeg ? 'true' : 'false');
+    });
+    renderScaleRep();
+    renderTend();
+  }
+
+  function tModeUI() {
+    segEnd();
+    $('tOpts').hidden = !(tMode === 'target' || tMode === 'scale');
+    $('tDegRow').hidden = tMode !== 'target';
+    $('scaleCard').hidden = tMode !== 'scale';
+    $('tendCard').hidden = tMode !== 'mine';
+    $('modeHint').textContent = HINTS[tMode];
+    mark('modeSeg', tMode);
+    tRenderOpts();
+    if (listening) tIdle();
+  }
+
   var lastRun = 0;
   function tLoop(ts) {
     tRaf = requestAnimationFrame(tLoop);
@@ -654,28 +843,47 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
       tHist.push(f);
       if (tHist.length > 5) tHist.shift();
       lastGood = ts;
+      if (tMode === 'scale' || tMode === 'mine') segFeed(f);
       // smooth in the pitch domain; snap straight to a new note when the pitch jumps
       var l = 1200 * Math.log(median(tHist) / s.a4) / Math.LN2;
       if (smooth === null || Math.abs(l - smooth) > 50) smooth = l;
       else smooth += 0.35 * (l - smooth);
       tShow(s.a4 * Math.pow(2, smooth / 1200));
-    } else if (ts - lastGood > 700) {
-      tHist = [];
-      smooth = null;
-      tIdle();
+    } else {
+      if (ts - lastGood > 250) segEnd();
+      if (ts - lastGood > 700) {
+        tHist = [];
+        smooth = null;
+        tIdle();
+      }
     }
   }
 
   function tShow(f) {
-    var n = 12 * Math.log(f / s.a4) / Math.LN2 + 69;
-    var nearest = Math.round(n);
-    var cents = (n - nearest) * 100;
-    var shift = instById[s.inst].shift;
+    var shift = instById[s.inst].shift, big, line1, tgt, cents, note = '';
+    if (tMode === 'target' || tMode === 'scale') {
+      var root = baseFreq(), l = 1200 * Math.log(f / root) / Math.LN2, pcC = mod1200(l);
+      var degs = scaleDegs(), deg = tMode === 'target' ? tDeg : nearestDeg(pcC), d = degs[deg];
+      var tc = justCents(d);
+      cents = dd(pcC, tc);
+      tgt = root * Math.pow(2, (tc + 1200 * Math.round((l - tc) / 1200)) / 1200);
+      big = name(s.note + d[0] + shift);
+      line1 = DEG[deg] + (shift !== 0 ? ' · sounds ' + name(s.note + d[0]) : '');
+      var off = tc - 100 * d[0];
+      note = Math.abs(off) < 0.5 ? 'The pure ' + DEG[deg] + ' matches piano pitch' : 'The pure ' + DEG[deg] + ' sits ' + fmtCents(off) + ' from piano pitch';
+    } else {
+      var n = 12 * Math.log(f / s.a4) / Math.LN2 + 69, nearest = Math.round(n);
+      cents = (n - nearest) * 100;
+      tgt = s.a4 * Math.pow(2, (nearest - 69) / 12);
+      big = NAMES[pc(nearest + shift)];
+      line1 = shift !== 0 ? 'sounds ' + NAMES[pc(nearest)] : ' ';
+    }
     var rc = Math.round(cents * 10) / 10;
-    $('noteBig').textContent = NAMES[pc(nearest + shift)];
-    $('concert').textContent = shift !== 0 ? 'sounds ' + NAMES[pc(nearest)] : ' ';
+    $('noteBig').textContent = big;
+    $('concert').textContent = line1;
     $('tHz').textContent = f.toFixed(1) + ' Hz';
-    $('tTarget').textContent = 'target ' + (s.a4 * Math.pow(2, (nearest - 69) / 12)).toFixed(1);
+    $('tTarget').textContent = 'target ' + tgt.toFixed(1);
+    $('tNote').textContent = note || ' ';
     $('cents').textContent = (rc > 0 ? '+' : rc < 0 ? MINUS : '') + Math.abs(rc).toFixed(1) + '¢';
     var state = Math.abs(cents) <= 5 ? 'good' : 'warn';
     $('verdict').textContent = state === 'good' ? 'In tune' : (cents > 0 ? 'Sharp' : 'Flat');
@@ -694,7 +902,7 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
     $('needle').style.left = '50%';
     $('noteBig').textContent = '–';
     $('concert').innerHTML = '&nbsp;';
-    $('levelFill').style.width = '0%';
+    $('tNote').innerHTML = '&nbsp;';
     $('tHz').innerHTML = '&nbsp;';
     $('tTarget').innerHTML = '&nbsp;';
     $('cents').innerHTML = '&nbsp;';
@@ -729,7 +937,7 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
       tHist = []; lastGood = 0; smooth = null;
       $('go').setAttribute('aria-pressed', 'true');
       $('go').textContent = 'Stop listening';
-      tSay(s.playing ? 'The drone is playing and the microphone may pick it up. Use headphones or stop the drone.' : 'Play one note at a time. Cents are measured against the nearest note at your chosen A.');
+      tSay(s.playing ? 'The drone is playing and the microphone may pick it up. Use headphones or stop the drone.' : 'Listening. Play one note at a time.');
       tIdle();
       tRaf = requestAnimationFrame(tLoop);
       if (navigator.wakeLock) {
@@ -749,6 +957,8 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
     if (tStream) tStream.getTracks().forEach(function (t) { t.stop(); });
     if (tctx) tctx.close();
     if (tWake) { tWake.release().catch(function () {}); tWake = null; }
+    segEnd();
+    $('levelFill').style.width = '0%';
     $('go').setAttribute('aria-pressed', 'false');
     $('go').textContent = 'Start listening';
     tIdle();
@@ -779,6 +989,29 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
     var b = e.target.closest('button');
     if (b) { tRange = b.dataset.v; drawScale(); }
   });
+  NAMES.forEach(function (n, i) {
+    var o = document.createElement('option');
+    o.value = String(i); o.textContent = n;
+    $('tKey').appendChild(o);
+  });
+  for (var di = 0; di < 7; di++) (function (i) {
+    var b = document.createElement('button');
+    b.innerHTML = '<b></b><small></small>';
+    b.addEventListener('click', function () { tDeg = i; tRenderOpts(); });
+    $('tDegs').appendChild(b);
+  })(di);
+  $('tKey').addEventListener('change', function (e) { s.note = +e.target.value; render(); apply(); });
+  $('tScaleSeg').addEventListener('click', function (e) {
+    var b = e.target.closest('button');
+    if (b) { s.scale = b.dataset.v; render(); apply(); }
+  });
+  $('modeSeg').addEventListener('click', function (e) {
+    var b = e.target.closest('button');
+    if (b) { tMode = b.dataset.v; tModeUI(); }
+  });
+  $('scaleClear').addEventListener('click', function () { scaleRep = {}; renderScaleRep(); });
+  $('tendClear').addEventListener('click', function () { tend = {}; saveTend(); renderTend(); });
+  tModeUI();
   drawScale();
   $('sensSeg').addEventListener('click', function (e) {
     var b = e.target.closest('button');
