@@ -157,7 +157,7 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
 .rtrace svg { width: 100%; height: 44px; display: block; }
 .rtrace .zone { fill: var(--good); opacity: .2; }
 .rtrace .mid { stroke: var(--muted); stroke-width: 1; opacity: .5; vector-effect: non-scaling-stroke; }
-.rtrace .line { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.rtrace .line { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
 .rtrace .lockline { stroke: var(--good); stroke-width: 2; stroke-dasharray: 3 3; vector-effect: non-scaling-stroke; }
 .rtrace small { font-size: 12px; color: var(--muted); }
 .rbar u { position: absolute; top: 0; width: 10px; height: 10px; margin-left: -5px; border-radius: 50%; border: 2px solid var(--muted); background: var(--surface); box-sizing: border-box; text-decoration: none; }
@@ -367,7 +367,6 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
     <div class="guide-step">How close to pure pitch</div>
     <div class="hold" aria-hidden="true"><div id="holdFill"></div></div>
     <p class="cap-msg" id="capMsg">&nbsp;</p>
-    <button class="clear" id="guideNext">Next note</button>
   </section>
 
   <div class="meter" id="meter">
@@ -802,7 +801,7 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
   var HINTS = {
     notes:  'Shows the nearest note and how many cents sharp or flat you are against piano pitch.',
     target: 'Pick the note you are playing. The meter shows how far you are from its pure (just) pitch over the key.',
-    scale:  'Play the scale slowly, about a second per note. The report shows each note’s average against pure pitch.',
+    scale:  'Play one note at a time and hold each for at least 4 seconds in total. Breaths and restarts are fine. It moves on when you play the next note.',
     mine:   'Play a chromatic scale slowly. The chart saves which notes you tend to play sharp or flat on this instrument.'
   };
 
@@ -833,22 +832,25 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
   }
 
   function traceSvg(t) {
-    var tr = t.trace, k = tr.length, pts = [], i;
-    for (i = 0; i < k; i++) {
-      var x = k > 1 ? 1 + i / (k - 1) * 198 : 100;
-      var y = 22 - Math.max(-30, Math.min(30, tr[i])) / 30 * 20;
-      pts.push(x.toFixed(1) + ',' + y.toFixed(1));
-    }
-    var lockX = t.lock !== null && t.dur > 0 ? 1 + Math.min(1, t.lock / t.dur) * 198 : null;
+    var B = t.buckets, d = '', pen = false;
+    B.forEach(function (v, i) {
+      if (v === null) { pen = false; return; }
+      var x = 1 + (i + 0.5) / B.length * 198, y = 22 - Math.max(-30, Math.min(30, v)) / 30 * 20;
+      d += (pen ? ' L' : ' M') + x.toFixed(1) + ',' + y.toFixed(1) + (pen ? '' : ' l0.01,0');
+      pen = true;
+    });
+    var lockX = t.lockAt !== null ? 1 + t.lockAt * 198 : null;
     return '<svg viewBox="0 0 200 44" preserveAspectRatio="none" aria-hidden="true">' +
       '<rect class="zone" x="0" y="' + (22 - 20 / 30 * 5).toFixed(1) + '" width="200" height="' + (2 * 20 / 30 * 5).toFixed(1) + '"/>' +
       '<line class="mid" x1="0" y1="22" x2="200" y2="22"/>' +
       (lockX !== null ? '<line class="lockline" x1="' + lockX.toFixed(1) + '" y1="2" x2="' + lockX.toFixed(1) + '" y2="42"/>' : '') +
-      '<polyline class="line" points="' + pts.join(' ') + '"/></svg>';
+      '<path class="line" d="' + d + '"/></svg>';
   }
   function traceText(t, n) {
     var txt = 'Landed ' + fmtCents(t.land) + ' → settled ' + fmtCents(t.settled);
     txt += t.lock === null ? ' · never locked in' : ' · locked in ' + t.lock.toFixed(1) + ' s';
+    txt += ' · ' + t.played.toFixed(1) + ' s played';
+    if (t.restarts) txt += ', ' + t.restarts + (t.restarts === 1 ? ' restart' : ' restarts');
     if (n > 1) txt += ' · latest of ' + n + ' tries';
     return txt;
   }
@@ -905,14 +907,24 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
       : 'Nothing saved yet. Play a chromatic scale slowly, holding each note about a second.';
   }
 
-  // ---------- guided scale ----------
-  var guide = { steps: [], i: 0, att: null, cand: [], lastCap: null }, dirUp = true, capTimer = 0;
-  var LOCK_TOL = 5, MIN_FRAMES = 10;
+  // ---------- guided scale: one continuous recording per note ----------
+  // A note's recording starts at its first sound, keeps going through breaths and restarts (gaps stay blank),
+  // and is saved if at least 4 seconds were actually played. It moves on only when you play the next note.
+  var guide = { steps: [], i: 0, rec: null, nextCand: [] }, dirUp = true, capTimer = 0;
+  var MIN_VOICED = 4000, SWITCH_FRAMES = 10, LOCK_FRAMES = 9, LOCK_TOL = 5, END_SILENCE = 3000;
 
   function std(a) { var m = mean(a), t = 0; a.forEach(function (v) { t += (v - m) * (v - m); }); return Math.sqrt(t / a.length); }
   function stepLabel(st) { return st.oct ? 'Octave' : DEG[st.deg]; }
   function stepSemi(st) { return scaleDegs()[st.deg][0] + (st.oct ? 12 : 0); }
   function guideStep() { return guide.steps[guide.i] || null; }
+  function rootAbs() { return 1200 * Math.log(baseFreq() / s.a4) / Math.LN2; }
+  function devOf(a, st) { return dd(mod1200(a - rootAbs()), justCents(scaleDegs()[st.deg])); }
+  function stepName(st) { return spell(s.note, s.scale === 'minor', instById[s.inst].shift, scaleDegs()[st.deg][0], st.deg); }
+  function voicedMs(fr) {
+    var t = fr.length ? 33 : 0, i;
+    for (i = 1; i < fr.length; i++) t += Math.min(fr[i].ts - fr[i - 1].ts, 100);
+    return t;
+  }
   function noteLabel(st) {
     var semi = stepSemi(st), step = st.oct ? 7 : st.deg, minor = s.scale === 'minor';
     var midi = 12 * (s.octave + 1) + s.note + semi, shift = instById[s.inst].shift;
@@ -922,12 +934,12 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
     var sound = cn + oct;
     return shift === 0 ? sound : spell(s.note, minor, shift, semi, step) + ' (sounds ' + sound + ')';
   }
-  function guideReset() { guide.att = null; guide.cand = []; }
+  function guideReset() { guide.rec = null; guide.nextCand = []; }
   function guideStart() {
     var up = [0, 1, 2, 3, 4, 5, 6].map(function (d) { return { deg: d, oct: false }; });
     up.push({ deg: 0, oct: true });
     guide.steps = dirUp ? up : up.slice().reverse();
-    guide.i = 0; guide.lastCap = null; guideReset();
+    guide.i = 0; guideReset();
     renderGuide();
   }
   function setCap(text, state) {
@@ -935,25 +947,30 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
     el.textContent = text || ' ';
     el.className = 'cap-msg' + (state ? ' ' + state : '');
     clearTimeout(capTimer);
-    if (text) capTimer = setTimeout(function () { el.textContent = ' '; el.className = 'cap-msg'; }, 4500);
+    if (text) capTimer = setTimeout(function () { el.textContent = ' '; el.className = 'cap-msg'; }, 6000);
   }
   function setClose(dev) {
     var el = $('holdFill');
     el.style.width = dev === null ? '0%' : Math.max(0, 100 - Math.abs(dev) / 30 * 100) + '%';
     el.className = dev !== null && Math.abs(dev) <= LOCK_TOL ? 'good' : '';
   }
+  function updateStepLine() {
+    var st = guideStep(), n = guide.steps.length;
+    if (!st) { $('guideStep').textContent = 'Finished'; return; }
+    var ms = guide.rec ? voicedMs(guide.rec.f) : 0, line = n > 1 ? 'Step ' + (guide.i + 1) + ' of ' + n : 'Retake';
+    if (listening) {
+      line += ' · ' + (ms / 1000).toFixed(1) + ' s played';
+      line += ms >= MIN_VOICED ? ' ✓ ' + (guide.steps[guide.i + 1] ? 'saves when you play the next note' : 'saves after a pause or when you stop') : ' (saves at 4 s)';
+    }
+    $('guideStep').textContent = line;
+  }
   function renderGuide() {
     var n = guide.steps.length, st = guideStep(), html = '', k;
     for (k = 0; k < n; k++) html += '<i class="' + (k < guide.i ? 'done' : k === guide.i ? 'cur' : '') + '"></i>';
     $('guideDots').innerHTML = html;
-    if (!st) {
-      $('guideStep').textContent = 'Finished';
-      $('guideText').textContent = 'Done. Tap a note below to retake it, or tap Start over.';
-    } else {
-      $('guideStep').textContent = (n > 1 ? 'Step ' + (guide.i + 1) + ' of ' + n : 'Retake') + (listening ? ' \u00B7 hold the note and tune it in, then play the next' : '');
-      $('guideText').textContent = (listening ? 'Play the ' : 'Press Start listening, then play the ') + stepLabel(st) + ': ' + noteLabel(st);
-    }
-    $('guideNext').hidden = !st || n < 2;
+    if (!st) $('guideText').textContent = 'Done. Tap a note below to retake it, or tap Start over.';
+    else $('guideText').textContent = (listening ? 'Play the ' : 'Press Start listening, then play the ') + stepLabel(st) + ': ' + noteLabel(st);
+    updateStepLine();
     setClose(null);
     renderScaleRep();
   }
@@ -961,73 +978,91 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
   function guideFeed(f, ts) {
     var st = guideStep();
     if (!st) return;
-    var a = 1200 * Math.log(f / s.a4) / Math.LN2, rootAbs = 1200 * Math.log(baseFreq() / s.a4) / Math.LN2;
-    var dev = dd(mod1200(a - rootAbs), justCents(scaleDegs()[st.deg]));
-    var onTarget = Math.abs(dev) <= 60;
-    var away = guide.lastCap === null || Math.abs(a - guide.lastCap) >= 60;
-    var at = guide.att;
-    if (!at) {
-      // waiting for a note to start: a few steady frames on the target note
-      var c = guide.cand;
-      if (onTarget && away) {
-        if (c.length && Math.abs(a - c[c.length - 1].a) > 35) c = guide.cand = [];
-        c.push({ a: a, dev: dev, t: ts });
-        setClose(dev);
-        if (c.length >= 4) {
-          guide.att = { t0: c[0].t, f: c.map(function (x) { return { t: x.t - c[0].t, dev: x.dev, a: x.a }; }), miss: 0 };
-          guide.cand = [];
-        }
-      } else { guide.cand = []; setClose(null); }
+    var a = 1200 * Math.log(f / s.a4) / Math.LN2, pcC = mod1200(a - rootAbs()), degs = scaleDegs();
+    var devCur = dd(pcC, justCents(degs[st.deg]));
+    var nxt = guide.steps[guide.i + 1] || null;
+    var devNext = nxt ? dd(pcC, justCents(degs[nxt.deg])) : 999;
+    if (nxt && Math.abs(devNext) <= 60 && Math.abs(devNext) < Math.abs(devCur)) {
+      // closer to the next note: it takes about a third of a second of steady playing to count as moving on
+      var c = guide.nextCand;
+      if (c.length && Math.abs(a - c[c.length - 1].a) > 35) c = guide.nextCand = [];
+      c.push({ ts: ts, a: a });
+      if (c.length >= SWITCH_FRAMES) advance(c);
       return;
     }
-    if (!onTarget) {                          // moved to another note: the attempt is over
-      at.miss++;
-      if (at.miss >= 3) finishAttempt(false);
-      return;
-    }
-    at.miss = 0;
-    at.f.push({ t: ts - at.t0, dev: dev, a: a });
-    setClose(dev);
+    guide.nextCand = [];
+    if (Math.abs(devCur) <= 60) {
+      if (!guide.rec) guide.rec = { f: [] };
+      guide.rec.f.push({ ts: ts, a: a });
+      setClose(devCur);
+      updateStepLine();
+    } else { setClose(null); }
   }
 
-  // Close out the current note: where it landed, where it settled, how long it took to lock in.
-  function finishAttempt(manual) {
-    var at = guide.att, st = guideStep();
-    guideReset();
-    if (!at || !st || at.f.length < MIN_FRAMES) return false;
-    var fr = at.f, n = fr.length, shift = instById[s.inst].shift, i, j;
-    var devs = fr.map(function (x) { return x.dev; });
-    var land = median(devs.slice(0, Math.min(8, n)));
-    var tail = devs.slice(-Math.min(15, Math.max(5, Math.floor(n * 0.4))));
-    var settled = median(tail), sd = std(tail);
-    var sm = devs.map(function (_, k) { return median(devs.slice(Math.max(0, k - 2), k + 3)); });
-    var lock = null;
-    for (i = 0; i + 8 < n && lock === null; i++) {
-      var inside = true;
-      for (j = i; j <= i + 8; j++) { if (Math.abs(sm[j]) > LOCK_TOL) { inside = false; break; } }
-      if (inside) lock = fr[i].t / 1000;
-    }
-    var trace = [], K = Math.min(40, n);
-    for (i = 0; i < K; i++) trace.push(median(devs.slice(Math.floor(i * n / K), Math.max(Math.floor(i * n / K) + 1, Math.floor((i + 1) * n / K)))));
-    var dur = fr[n - 1].t / 1000;
-    (scaleRep[st.deg] = scaleRep[st.deg] || []).push({ land: land, settled: settled, sd: sd, lock: lock, trace: trace, dur: dur });
-    guide.lastCap = median(fr.slice(-Math.min(15, n)).map(function (x) { return x.a; }));
+  function advance(seed) {
+    finalizeRec();
     guide.i++;
-    var nm = spell(s.note, s.scale === 'minor', shift, scaleDegs()[st.deg][0], st.deg);
-    setCap(nm + ': landed ' + fmtCents(land) + ', ' + (lock === null ? 'ended at ' : 'settled ') + fmtCents(settled) +
+    guide.nextCand = [];
+    guide.rec = { f: seed.map(function (x) { return { ts: x.ts, a: x.a }; }) };   // the new note starts where you started playing it
+    renderGuide();
+  }
+
+  // Silence never decides anything, except after the last note: a long pause ends it.
+  function guideSilence(ts) {
+    if (ts - lastGood > 150) guide.nextCand = [];
+    if (ts - lastGood > 350) setClose(null);
+    var rec = guide.rec;
+    if (rec && guideStep() && !guide.steps[guide.i + 1] && rec.f.length &&
+        ts - rec.f[rec.f.length - 1].ts > END_SILENCE && voicedMs(rec.f) >= MIN_VOICED) {
+      if (finalizeRec()) { guide.i++; renderGuide(); }
+    }
+  }
+  function guideFinish() {          // listening stopped
+    if (finalizeRec()) guide.i++;
+    renderGuide();
+  }
+
+  // Turn the recording into a result: landed, settled (steadiest second), lock-in time, trace with gaps.
+  function finalizeRec() {
+    var rec = guide.rec, st = guideStep();
+    guide.rec = null;
+    if (!rec || !st) return false;
+    var fr = rec.f, n = fr.length, nm = stepName(st), i, j;
+    if (voicedMs(fr) < MIN_VOICED) {
+      if (n >= 3) setCap(nm + ': under 4 seconds, not saved', 'warn');
+      return false;
+    }
+    var devs = fr.map(function (x) { return devOf(x.a, st); });
+    var land = median(devs.slice(0, Math.min(8, n)));
+    var W = Math.min(30, n), best = 1e9, bi = 0;
+    for (i = 0; i + W <= n; i++) { var sdw = std(devs.slice(i, i + W)); if (sdw <= best) { best = sdw; bi = i; } }
+    var settled = median(devs.slice(bi, bi + W));
+    var sm = devs.map(function (_, k) { return median(devs.slice(Math.max(0, k - 2), k + 3)); });
+    var lockI = -1;
+    for (i = 0; i + LOCK_FRAMES <= n && lockI < 0; i++) {
+      var run = true;
+      for (j = i; j < i + LOCK_FRAMES; j++) {
+        if (Math.abs(sm[j]) > LOCK_TOL || (j > i && fr[j].ts - fr[j - 1].ts > 100)) { run = false; break; }
+      }
+      if (run) lockI = i;
+    }
+    var total = Math.max(1, fr[n - 1].ts - fr[0].ts), lock = null, lockAt = null;
+    if (lockI >= 0) { lock = voicedMs(fr.slice(0, lockI + 1)) / 1000; lockAt = (fr[lockI].ts - fr[0].ts) / total; }
+    var B = Math.max(8, Math.min(80, Math.floor(total / 100))), buckets = [], k;
+    for (k = 0; k < B; k++) buckets.push([]);
+    fr.forEach(function (x, idx) { buckets[Math.min(B - 1, Math.floor((x.ts - fr[0].ts) / total * B))].push(devs[idx]); });
+    buckets = buckets.map(function (a) { return a.length ? median(a) : null; });
+    var restarts = 0;
+    for (i = 1; i < n; i++) { if (fr[i].ts - fr[i - 1].ts > 400) restarts++; }
+    (scaleRep[st.deg] = scaleRep[st.deg] || []).push({
+      land: land, settled: settled, sd: best, lock: lock, lockAt: lockAt,
+      played: voicedMs(fr) / 1000, restarts: restarts, buckets: buckets
+    });
+    setCap(nm + ': landed ' + fmtCents(land) + ', settled ' + fmtCents(settled) +
            (lock === null ? ', never locked within 5¢' : ', locked in ' + lock.toFixed(1) + ' s'),
            lock !== null && Math.abs(settled) <= LOCK_TOL ? 'good' : 'warn');
     try { if (navigator.vibrate) navigator.vibrate(30); } catch (e) {}
-    renderGuide();
     return true;
-  }
-  function guideNext() {
-    if (!guideStep()) return;
-    if (guide.att && finishAttempt(true)) return;
-    guideReset();
-    guide.i++;
-    setCap('');
-    renderGuide();
   }
 
   function segFeed(f) {
@@ -1109,11 +1144,7 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
       tShow(s.a4 * Math.pow(2, smooth / 1200));
     } else {
       if (ts - lastGood > 250) segEnd();
-      if (ts - lastGood > 350 && tMode === 'scale') {   // the note was released
-        if (guide.att) finishAttempt(false);
-        guide.cand = [];
-        setClose(null);
-      }
+      if (tMode === 'scale') guideSilence(ts);
       if (ts - lastGood > 700) {
         tHist = [];
         smooth = null;
@@ -1234,7 +1265,7 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
     if (tctx) tctx.close();
     if (tWake) { tWake.release().catch(function () {}); tWake = null; }
     segEnd();
-    if (tMode === 'scale') finishAttempt(false);
+    if (tMode === 'scale') guideFinish();
     guideReset();
     $('levelFill').style.width = '0%';
     $('go').setAttribute('aria-pressed', 'false');
@@ -1298,11 +1329,10 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
     if (!r || tMode !== 'scale' || r.dataset.deg === undefined) return;
     var deg = +r.dataset.deg;
     scaleRep[deg] = [];
-    guide.steps = [{ deg: deg, oct: false }]; guide.i = 0; guide.lastCap = null; guideReset();
+    guide.steps = [{ deg: deg, oct: false }]; guide.i = 0; guideReset();
     renderGuide();
     setCap('');
   });
-  $('guideNext').addEventListener('click', guideNext);
   $('tOctDown').addEventListener('click', function () { s.octave = Math.max(1, s.octave - 1); render(); apply(); });
   $('tOctUp').addEventListener('click', function () { s.octave = Math.min(6, s.octave + 1); render(); apply(); });
   $('tDroneBtn').addEventListener('click', function () { setPlaying(!s.playing); render(); });
