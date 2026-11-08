@@ -449,7 +449,7 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
     <div class="label">Scale report</div>
     <div id="scaleRows"></div>
     <p class="hint" id="scaleSum"></p>
-    <p class="hint" id="hearMsg">Tap Hear it on a note. The root plays the whole time (about 16 s). Against it you hear your note (wobble), then the pure note (smooth), twice. Stop listening first.</p>
+    <p class="hint" id="hearMsg">Tap Hear it on a note. A soft low root plays the whole time (about 16 s). On top you hear your note (wobble), then the pure note (smooth), twice, both clearly louder than the root. Stop listening first.</p>
     <p class="hint">Hollow dot: where you landed. Solid dot: where you settled. The line shows your pitch over time, the green band is within 5&cent;, and the dashed line marks when you locked in. Tap a row to retake that note.</p>
     <button class="clear" id="scaleClear">Start over</button>
   </section>
@@ -461,7 +461,7 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
     <button class="clear" id="tendClear">Clear saved results</button>
   </section>
 
-  <p class="hint" id="buildTag" style="text-align:center;opacity:.6">Version: Nov 8, 4 s Hear it vs root</p>
+  <p class="hint" id="buildTag" style="text-align:center;opacity:.6">Version: Nov 8b, louder notes over soft low root</p>
   <p class="msg" id="msg">Tap Start, allow the microphone, then play one note at a time. The reading is in cents: 100 cents is one half step.</p>
 
   </div>
@@ -1385,8 +1385,8 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
   function audioDone() {
     stopTimer = setTimeout(function () { if (!s.playing && !trOn && hearing < 0 && ctx) ctx.suspend(); }, 500);
   }
-  function toneOnce(freq, t0, dur) {
-    var o = ctx.createOscillator(), f = ctx.createBiquadFilter(), g = ctx.createGain(), lv = Math.max(0.05, s.vol) * 0.3;
+  function toneOnce(freq, t0, dur, amp) {
+    var o = ctx.createOscillator(), f = ctx.createBiquadFilter(), g = ctx.createGain(), lv = Math.max(0.05, s.vol) * 0.3 * (amp || 1);
     o.type = 'sawtooth';
     o.frequency.value = freq;
     f.type = 'lowpass'; f.frequency.value = 2600;
@@ -1408,13 +1408,13 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
     if (!a.length) return;
     var settled = mean(a.map(function (c) { return c.settled; }));
     var r = SCALES[s.scale][deg][1], root = baseFreq();
-    while (root < 150) root *= 2;
+    while (root < 200) root *= 2;
     var target = root * r[0] / r[1], mine = target * Math.pow(2, settled / 1200);
     audioReady().then(function () {
       var t0 = ctx.currentTime + 0.1, seq = [mine, target, mine, target], SEG = 4;
       var sharp = settled >= 0 ? 'sharp' : 'flat', amt = Math.abs(settled).toFixed(0);
-      toneOnce(root, t0, seq.length * SEG);            // the root drones the whole time
-      seq.forEach(function (f, i) { toneOnce(f, t0 + i * SEG, SEG); });
+      toneOnce(root / 2, t0, seq.length * SEG, 0.55);  // the root drones an octave lower and softer, so the notes on top stand out
+      seq.forEach(function (f, i) { toneOnce(f, t0 + i * SEG, SEG, 1.3); });
       seq.forEach(function (f, i) {
         hearTimers.push(setTimeout(function () {
           $('hearMsg').textContent = i % 2 === 0
