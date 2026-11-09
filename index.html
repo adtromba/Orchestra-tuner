@@ -117,6 +117,9 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
 .zonebar.on { background: var(--good); color: #061a0d; }
 .meter.zone-on { border-color: var(--good); box-shadow: 0 0 0 4px var(--good); }
 .verdict { text-align: center; font-size: 18px; font-weight: 600; min-height: 26px; color: var(--muted); }
+.smile { text-align: center; font-size: 56px; line-height: 1.1; animation: pop .25s ease-out; }
+@keyframes pop { from { transform: scale(.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .smile { animation: none; } }
 .state-good .cents, .state-good .verdict { color: var(--good); }
 .state-warn .cents, .state-warn .verdict { color: var(--warn); }
 .bar { position: relative; height: 56px; }
@@ -530,6 +533,7 @@ main { padding-bottom: 120px; }
     <div>
       <div class="cents" id="cents">&nbsp;</div>
       <div class="verdict" id="verdict">&nbsp;</div>
+      <div class="smile" id="smile" hidden aria-hidden="true">&#128522;</div>
       <p class="pure" id="tBeat">&nbsp;</p>
       <p class="pure" id="tNote">&nbsp;</p>
     </div>
@@ -579,7 +583,7 @@ main { padding-bottom: 120px; }
   </section>
   </div>
 
-  <p class="hint" id="buildTag" style="text-align:center;opacity:.6">Version: Nov 8o, Climb: check-mark sound in, falling sound out</p>
+  <p class="hint" id="buildTag" style="text-align:center;opacity:.6">Version: Nov 8p, Smiley when in tune</p>
   <p class="msg" id="msg">Tap Start, allow the microphone, then play one note at a time. The reading is in cents: 100 cents is one half step.</p>
 
   </div>
@@ -1670,6 +1674,7 @@ main { padding-bottom: 120px; }
     $('tcap').textContent = 'Listening';
     var m = $('meter');
     m.classList.add('live');
+    $('smile').hidden = state !== 'good';
     m.classList.toggle('state-good', state === 'good');
     m.classList.toggle('state-warn', state === 'warn');
     var pos = 50 + Math.max(-50, Math.min(50, cents / RANGE[tRange] * 50));
@@ -1679,6 +1684,7 @@ main { padding-bottom: 120px; }
   function tIdle() {
     var m = $('meter');
     m.classList.remove('live', 'state-good', 'state-warn');
+    $('smile').hidden = true;
     $('needle').style.left = '50%';
     $('noteBig').textContent = '–';
     $('concert').innerHTML = '&nbsp;';
