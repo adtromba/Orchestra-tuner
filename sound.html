@@ -79,7 +79,7 @@ th:first-child, td:first-child { text-align: left; }
 </head>
 <body>
 <main>
-  <h1>Sound test (beta)</h1>
+  <h1>Sound test (beta) <span id="ver">v1e</span></h1>
   <section class="card">
     <div class="prompt" id="prompt">Play written G</div>
     <div class="meter" id="meter" role="meter" aria-label="Focus" aria-valuemin="0" aria-valuemax="100"><div class="fill" id="fill"></div><div class="mark" id="mark"></div></div>
@@ -128,7 +128,7 @@ th:first-child, td:first-child { text-align: left; }
       <button class="btn" id="clear">Clear</button>
     </div>
   </section>
-  <p class="hint" id="buildTag" style="text-align:center;opacity:.6">Sound test v1d</p>
+  <p class="hint" id="buildTag" style="text-align:center;opacity:.6">Sound test v1e</p>
 </main>
 <script>
 (function () {
@@ -460,6 +460,15 @@ th:first-child, td:first-child { text-align: left; }
     saved = []; persist(); renderTable(); $('ask').hidden = true; pending = null; clearArmed = 0; $('clear').textContent = 'Clear';
   });
   renderTable();
+
+  // stale-cache check: if the server has a newer sound.html, reload it
+  var VERSION = 'v1e';
+  try {
+    fetch(location.pathname + '?x=' + Date.now(), { cache: 'no-store' }).then(function (r) { return r.text(); }).then(function (t) {
+      var m = t.match(/var VERSION = '(v\w+)'/);
+      if (m && m[1] !== VERSION && location.search.indexOf('v=' + m[1]) < 0) location.replace(location.pathname + '?v=' + m[1]);
+    }).catch(function () {});
+  } catch (e) {}
 
   // hook for tests
   window.__sound = { analyze: analyze, verdictOf: verdictOf, TARGET_HZ: TARGET_HZ, WINDOW: WINDOW };
