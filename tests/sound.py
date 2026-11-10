@@ -1,4 +1,4 @@
-# Checks for sound.html v2: pitch peak/FUND_SHARE ordering, calibration judging, word hysteresis, full calibration flow, layout.
+# Checks for sound.html v3: pitch peak/FUND_SHARE ordering, calibration judging, word hysteresis, full calibration flow, layout.
 import os
 HERE=os.path.dirname(os.path.abspath(__file__))
 PAGE='file://'+os.path.join(os.path.dirname(HERE),'sound.html')
@@ -14,14 +14,14 @@ window.T = (()=>{
     flat:    tone([0.03,0.05,0.25,0.2,0.1,0.05]),
     mid:     tone([0.07,0.1,0.15,0.1,0.05]),
     veryPinched: tone([0.2,0.05,0.05,0.03,0.02]),
-    near:    tone([0.12,0.1,0.15,0.1,0.05]),
+    closeMid: tone([0.075,0.1,0.15,0.1,0.05]),
     lowOctaveStrong: tone([0.03,0.05,0.25,0.2,0.1,0.05])};
 })();
 """
 FLOW = """
 (args)=>{
   const S=window.__sound,T=window.T; let now=1000; S.testStart(now);
-  const pick={silent:T.silence,pinched:T.pinched,flat:T[args.flat||'flat'],centered:T[args.mid]};
+  const pick={silent:T.silence,pinched:T[args.p||'pinched'],flat:T[args.flat||'flat'],centered:T[args.mid]};
   for(let i=0;i<args.maxTicks;i++){
     const st=S.state(); if(st.phase!=='cal') break;
     S.process(pick[st.step]||T.silence,T.sr,now); now+=100;
@@ -45,10 +45,10 @@ with sync_playwright() as p:
     check('fund-heavy > mid > weak-fundamental',R['pinched']['fund']>R['mid']['fund']>R['flat']['fund'],[round(R[k]['fund'],1) for k in ('pinched','mid','flat')])
     P,F=R['pinched']['fund'],R['flat']['fund']
     check('fund-heavy lands right of centre',(R['pinched']['fund']-F)/(P-F)>0.83); check('weak-fundamental lands left',(R['flat']['fund']-F)/(P-F)<0.17)
-    # 2. calibration judging
-    J=pg.evaluate("()=>{const S=window.__sound; return {mid:S.centerCheck(-2,-19,-10), hi:S.centerCheck(-2,-19,-4.5), lo:S.centerCheck(-2,-19,-17), span:S.spanTooSmall(-2,-9), spanOk:S.spanTooSmall(-2,-19)}}")
-    check('mid C accepted',J['mid']['status']=='ok',J['mid']); check('C at pos 0.85 flagged pinched',J['hi']['status']=='pinched',J['hi']); check('C low flagged flat',J['lo']['status']=='flat')
-    check('span under 8 dB rejected',J['span'] is True and J['spanOk'] is False)
+    # 2. pos scale
+    J=pg.evaluate("()=>{const S=window.__sound; return {mid:S.posOf(-10,-2,-19), pEnd:S.posOf(-2,-2,-19), fEnd:S.posOf(-19,-2,-19), revP:S.posOf(-19,-19,-2), revF:S.posOf(-2,-19,-2)}}")
+    check('pos: 0 at flat, 1 at pinched, mid about 0.5',abs(J['mid']-0.53)<0.02 and J['pEnd']==1 and J['fEnd']==0,J)
+    check('reversed P<F still gives pinched=1, flat=0',J['revP']==1 and J['revF']==0)
     # 3. word hysteresis
     H=pg.evaluate("""()=>{const S=window.__sound,w=S.newWord(); let t=0,log=[];
       for(;t<=2000;t+=100) S.wordStep(w,'centered',t); log.push(w.shown);          // settles on centered
@@ -69,10 +69,15 @@ with sync_playwright() as p:
       return w;}""",o['now'])
     check('practice: Centered, blip ignored, then pinched, then flat',o2==['centered','centered','pinched','flat'],o2)
     pg.evaluate("document.getElementById('tbl')"); pg.screenshot(path='/tmp/sound_practice.png')
+    check('calibration never blocks: info line',st['info'].startswith('Your centered note sat at ') and st['info'].endswith('(50% = middle of your range)') and not st['warn'],st['info'])
     o=pg.evaluate(FLOW,{'mid':'veryPinched','maxTicks':600}); st=o['st']
-    check('centered at pos >0.7 is flagged',st['step']=='leansPinched',st)
-    o=pg.evaluate(FLOW,{'mid':'mid','flat':'near','maxTicks':600}); st=o['st']
-    check('pinched/flat span too small rejected',st['step']=='span',st)
+    check('centered far to one side still proceeds',st['phase']=='practice' and st['posC']>0.8 and abs(st['center']-0.5)<1e-9,{k:st[k] for k in ('phase','posC','info')})
+    o=pg.evaluate(FLOW,{'mid':'mid','p':'closeMid','flat':'mid','maxTicks':600}); st=o['st']
+    check('span under 2 dB proceeds with the unreliable note',st['phase']=='practice' and st['span']<2 and st['warn'],{k:st[k] for k in ('phase','span','warn')})
+    o=pg.evaluate(FLOW,{'mid':'mid','p':'flat','flat':'pinched','maxTicks':600}); st=o['st']
+    check('reversed P<F proceeds and is flagged',st['phase']=='practice' and st['reversed'] is True and st['span']>8,{k:st[k] for k in ('phase','reversed','span')})
+    row=pg.evaluate("window.__sound.calCsv()")
+    check('calibration CSV row',row and row.splitlines()[1].startswith('"Calibration"') and 'reversed' in row.splitlines()[1],row)
     # 5. layout
     for w in (390,320):
         for view in ('cal','practice'):

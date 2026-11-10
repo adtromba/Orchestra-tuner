@@ -85,7 +85,7 @@ th:first-child, td:first-child { text-align: left; }
 </head>
 <body>
 <main>
-  <h1>Sound test (beta) <span id="ver">v2a</span></h1>
+  <h1>Sound test (beta) <span id="ver">v3a</span></h1>
   <section class="card">
     <div id="calBox" class="row" style="gap:14px">
       <div class="calbig" id="calText">Tap Start listening</div>
@@ -99,6 +99,8 @@ th:first-child, td:first-child { text-align: left; }
       <div class="scale"><span>flat</span><span>pinched</span></div>
       <div class="big" id="verdict" aria-live="polite"></div>
       <div class="cents" id="cents"></div>
+      <p class="hint" id="calInfo" style="text-align:center"></p>
+      <p class="note" id="calWarn" hidden></p>
     </div>
     <div class="wrap">
       <button class="btn main" id="go">Start listening</button>
@@ -145,17 +147,18 @@ th:first-child, td:first-child { text-align: left; }
     <div class="tbl"><table id="tbl"><thead><tr><th>#</th><th>label</th><th>verdict</th><th>fund</th><th>pos</th><th>cents</th><th>level</th></tr></thead><tbody></tbody></table></div>
     <div class="wrap">
       <button class="btn" id="copy">Copy all as CSV</button>
+      <button class="btn" id="copycal">Copy calibration</button>
       <button class="btn" id="dl">Download CSV</button>
       <button class="btn" id="clear">Clear</button>
     </div>
   </section>
-  <p class="hint" id="buildTag" style="text-align:center;opacity:.6">Sound test v2a</p>
+  <p class="hint" id="buildTag" style="text-align:center;opacity:.6">Sound test v3a</p>
 </main>
 <script>
 (function () {
   'use strict';
   // ---------- constants (tune these) ----------
-  var VERSION = 'v2a';
+  var VERSION = 'v3a';
   var TARGET_HZ = 349.23;        // written G4 on B-flat trumpet = concert F4 at A=440
   var PEAK_RANGE_CENTS = 100;    // f0 = largest FFT peak within this of target
   var PEAK_PROM_DB = 15;         // that peak must stand this far above the local spectrum median
@@ -175,9 +178,9 @@ th:first-child, td:first-child { text-align: left; }
   var STEADY_S = 2;              // steadiest stretch used
   var FLUSH_S = 0.7;             // ignore this long after each step starts (old audio still in the window)
   var HOLD_GRACE_MS = 400;       // a gap shorter than this does not reset the hold
-  var MIN_SPAN = 8;              // dB, P - F must be at least this
-  var CENTER_OK_LO = 0.30, CENTER_OK_HI = 0.70;
-  var CENTER_ZONE = 0.13;        // green band = CENTER +- this
+  var CENTER_POS = 0.5;          // target on the pos scale (Ryan's balanced notes averaged 0.49)
+  var SPAN_WARN_DB = 2;          // P - F smaller than this: show the unreliable note
+  var CENTER_ZONE = 0.13;        // green band = CENTER_POS +- this
   var NEEDLE_MIN = -0.25, NEEDLE_MAX = 1.25;
   var WORD_HOLD = 1.0;           // seconds a new state must hold before the word changes
   var WORDS = { centered: 'Centered', flat: 'Aim higher', pinched: 'Aim lower' };
@@ -188,9 +191,7 @@ th:first-child, td:first-child { text-align: left; }
     flat: 'Play G flat — full, no sparkle, sitting low.',
     centered: 'Play G centered — your best sound.',
     noisy: 'Too noisy here — move somewhere quieter',
-    span: 'Pinched and flat were too close — exaggerate them more.',
-    leansPinched: 'Your centered note leans pinched',
-    leansFlat: 'Your centered note leans flat'
+    spanWarn: 'Pinched and flat sounded very similar to the mic, so readings may be unreliable'
   };
   var STORE_KEY = 'orchestra-sound-test-v2';
 
@@ -287,12 +288,8 @@ th:first-child, td:first-child { text-align: left; }
   }
 
   // ---------- pure helpers (also used by tests) ----------
-  function posOf(x, P, F) { return (x - F) / (P - F); }
-  function spanTooSmall(P, F) { return P - F < MIN_SPAN; }
-  function centerCheck(P, F, C) {
-    var pos = posOf(C, P, F);
-    return { pos: pos, status: pos > CENTER_OK_HI ? 'pinched' : pos < CENTER_OK_LO ? 'flat' : 'ok' };
-  }
+  // 0 = flat end, 1 = pinched end. If P < F (reversed) the sign of (P - F) swaps the sides; a zero span is nudged to avoid dividing by 0.
+  function posOf(x, P, F) { var d = P - F; if (Math.abs(d) < 1e-3) d = 1e-3; return (x - F) / d; }
   function rawState(pos, center) {
     return pos < center - CENTER_ZONE ? 'flat' : pos > center + CENTER_ZONE ? 'pinched' : 'centered';
   }
@@ -395,20 +392,20 @@ th:first-child, td:first-child { text-align: left; }
   function finishStep(v, now) {
     var step = cal.step;
     if (step === 'pinched') { cal.P = v; startStep('flat', now); }
-    else if (step === 'flat') {
-      cal.F = v;
-      if (spanTooSmall(cal.P, cal.F)) startStep('span', now); else startStep('centered', now);
-    } else if (step === 'centered') {
-      cal.C = v;
-      var c = centerCheck(cal.P, cal.F, cal.C);
-      if (c.status === 'ok') acceptCal(now);
-      else startStep(c.status === 'pinched' ? 'leansPinched' : 'leansFlat', now);
-    }
+    else if (step === 'flat') { cal.F = v; startStep('centered', now); }
+    else if (step === 'centered') { cal.C = v; acceptCal(now); }     // calibration is data only, it never blocks
     updateCalDetails();
   }
   function acceptCal(now) {
-    cal.center = posOf(cal.C, cal.P, cal.F);
+    cal.center = CENTER_POS;
+    cal.posC = posOf(cal.C, cal.P, cal.F);
+    cal.span = Math.abs(cal.P - cal.F);
+    cal.reversed = cal.P < cal.F;
+    cal.noise = noiseLevel;
+    cal.time = new Date().toISOString();
     phase = 'practice'; resetNote();
+    $('calInfo').textContent = 'Your centered note sat at ' + Math.round(100 * cal.posC) + '% (50% = middle of your range)';
+    $('calWarn').textContent = TXT.spanWarn; $('calWarn').hidden = !(cal.span < SPAN_WARN_DB);
     var lo = (cal.center - CENTER_ZONE - NEEDLE_MIN) / (NEEDLE_MAX - NEEDLE_MIN), hi = (cal.center + CENTER_ZONE - NEEDLE_MIN) / (NEEDLE_MAX - NEEDLE_MIN);
     lo = clamp(lo, 0, 1); hi = clamp(hi, 0, 1);
     $('band').style.left = lo * 100 + '%'; $('band').style.width = (hi - lo) * 100 + '%';
@@ -417,7 +414,7 @@ th:first-child, td:first-child { text-align: left; }
   function updateCalDetails() {
     $('dP').textContent = cal && cal.P !== null ? fmt(cal.P) : '–';
     $('dF').textContent = cal && cal.F !== null ? fmt(cal.F) : '–';
-    $('dC').textContent = cal && cal.C !== null ? fmt(cal.C) + (cal.center !== null ? ' (pos ' + cal.center.toFixed(2) + ')' : '') : '–';
+    $('dC').textContent = cal && cal.C !== null ? fmt(cal.C) + (cal.posC !== undefined ? ' (pos ' + cal.posC.toFixed(2) + ')' : '') : '–';
   }
 
   function pracTick(sr, level, now) {
@@ -456,8 +453,6 @@ th:first-child, td:first-child { text-align: left; }
     $('calSub').textContent = sub;
     var btns = '';
     if (step === 'noisy') btns = '<button class="btn main" data-act="silent">Try again</button>';
-    else if (step === 'span') btns = '<button class="btn main" data-act="pinched">Try again</button>';
-    else if (step === 'leansPinched' || step === 'leansFlat') btns = '<button class="btn main" data-act="center">Try again</button><button class="btn" data-act="use">Use it anyway</button>';
     if ($('calBtns').dataset.s !== step) { $('calBtns').innerHTML = btns; $('calBtns').dataset.s = step; }
   }
   function renderPractice(m) {
@@ -481,9 +476,6 @@ th:first-child, td:first-child { text-align: left; }
     var b = e.target.closest('button'); if (!b || !cal) return;
     var now = performance.now(), a = b.dataset.act;
     if (a === 'silent') startStep('silent', now);
-    else if (a === 'pinched') startStep('pinched', now);
-    else if (a === 'center') startStep('centered', now);
-    else if (a === 'use') acceptCal(now);
   });
 
   // ---------- microphone ----------
@@ -557,12 +549,23 @@ th:first-child, td:first-child { text-align: left; }
   var saved = [];
   try { saved = JSON.parse(localStorage.getItem(STORE_KEY) || '[]'); } catch (e) {}
   function persist() { try { localStorage.setItem(STORE_KEY, JSON.stringify(saved)); } catch (e) {} }
-  var COLS = ['time', 'label', 'verdict', 'fund_share', 'pos', 'cents', 'level', 'h2_rel', 'h3_rel', 'h4_rel', 'h5_rel', 'P', 'F', 'C', 'center'];
-  function row(n) { return [n.time, n.label, n.verdict, n.fund, n.pos, n.cents, n.level, n.h2, n.h3, n.h4, n.h5, n.P, n.F, n.C, n.center]; }
+  var COLS = ['time', 'label', 'verdict', 'fund_share', 'pos', 'cents', 'level', 'h2_rel', 'h3_rel', 'h4_rel', 'h5_rel', 'P', 'F', 'C', 'pos_C', 'span', 'noise_dbfs', 'reversed', 'cal_time'];
+  var CALCOLS = ['row', 'P', 'F', 'C', 'pos_C', 'span', 'noise_dbfs', 'reversed', 'timestamp'];
+  function row(n) { return [n.time, n.label, n.verdict, n.fund, n.pos, n.cents, n.level, n.h2, n.h3, n.h4, n.h5, n.P, n.F, n.C, n.posC, n.span, n.noise, n.reversed, n.calTime]; }
+  function cell(v) {
+    if (v === undefined || v === null) return '';
+    if (typeof v === 'number') return v.toFixed(2);
+    if (typeof v === 'boolean') return v ? 'reversed' : 'no';
+    return '"' + String(v).replace(/"/g, '""') + '"';
+  }
   function csv() {
     var lines = [COLS.join(',')];
-    saved.forEach(function (n) { lines.push(row(n).map(function (v) { return typeof v === 'number' ? v.toFixed(2) : '"' + String(v).replace(/"/g, '""') + '"'; }).join(',')); });
+    saved.forEach(function (n) { lines.push(row(n).map(cell).join(',')); });
     return lines.join('\n');
+  }
+  function calCsv() {
+    if (!cal || cal.center === null || cal.posC === undefined) return null;
+    return CALCOLS.join(',') + '\n' + ['Calibration', cal.P, cal.F, cal.C, cal.posC, cal.span, cal.noise, cal.reversed, cal.time].map(cell).join(',');
   }
   function renderTable() {
     var tb = $('tbl').tBodies[0];
@@ -579,7 +582,7 @@ th:first-child, td:first-child { text-align: left; }
     if (!noteReadings.length || !cal || cal.center === null) return;
     var m = medianOf(noteReadings);
     pending = { time: new Date().toISOString(), label: '', verdict: word.shown ? WORDS[word.shown] : '', fund: m.fund, pos: posOf(m.fund, cal.P, cal.F), cents: m.cents, level: m.level,
-      h2: m.h2, h3: m.h3, h4: m.h4, h5: m.h5, P: cal.P, F: cal.F, C: cal.C, center: cal.center };
+      h2: m.h2, h3: m.h3, h4: m.h4, h5: m.h5, P: cal.P, F: cal.F, C: cal.C, posC: cal.posC, span: cal.span, noise: cal.noise, reversed: cal.reversed, calTime: cal.time };
     saved.push(pending); persist(); renderTable();
     $('ask').hidden = false;
   });
@@ -588,11 +591,16 @@ th:first-child, td:first-child { text-align: left; }
     pending.label = b.dataset.l; persist(); renderTable();
     pending = null; $('ask').hidden = true;
   });
-  $('copy').addEventListener('click', function () {
-    var t = csv();
-    var done = function () { $('msg').textContent = 'Copied ' + saved.length + ' notes.'; };
+  function copyText(t, what) {
+    var done = function () { $('msg').textContent = 'Copied ' + what + '.'; };
     if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(done, function () { $('msg').textContent = 'Copy blocked. Use Download CSV.'; });
     else $('msg').textContent = 'Copy not available. Use Download CSV.';
+  }
+  $('copy').addEventListener('click', function () { copyText(csv(), saved.length + ' notes'); });
+  $('copycal').addEventListener('click', function () {
+    var t = calCsv();
+    if (!t) { $('msg').textContent = 'No calibration yet. Start listening and finish the 4 steps.'; return; }
+    copyText(t, 'calibration');
   });
   $('dl').addEventListener('click', function () {
     var a = document.createElement('a');
@@ -617,13 +625,13 @@ th:first-child, td:first-child { text-align: left; }
 
   // hooks for tests
   window.__sound = {
-    analyze: analyze, TARGET_HZ: TARGET_HZ, WINDOW: WINDOW, posOf: posOf, spanTooSmall: spanTooSmall, centerCheck: centerCheck,
-    newWord: newWord, wordStep: wordStep, MIN_SPAN: MIN_SPAN, WORD_HOLD: WORD_HOLD,
+    analyze: analyze, TARGET_HZ: TARGET_HZ, WINDOW: WINDOW, posOf: posOf, calCsv: calCsv,
+    newWord: newWord, wordStep: wordStep, WORD_HOLD: WORD_HOLD,
     testStart: function (now) { listening = true; startCal(now); },
     process: process,
-    state: function () { return { phase: phase, step: cal && cal.step, P: cal && cal.P, F: cal && cal.F, C: cal && cal.C, center: cal && cal.center, word: word.shown, text: $('calText').textContent, verdict: $('verdict').textContent }; },
+    state: function () { return { phase: phase, step: cal && cal.step, P: cal && cal.P, F: cal && cal.F, C: cal && cal.C, center: cal && cal.center, posC: cal && cal.posC, span: cal && cal.span, reversed: cal && cal.reversed, info: $('calInfo').textContent, warn: !$('calWarn').hidden, word: word.shown, text: $('calText').textContent, verdict: $('verdict').textContent }; },
     demo: function (pos) {
-      listening = true; cal = { P: -2, F: -19, C: -10, center: 0.5, step: 'x' }; phase = 'practice'; word.shown = 'flat'; acceptCal(0); word.shown = 'flat';
+      listening = true; cal = { P: -2, F: -19, C: -10, center: 0.5, posC: 0.47, span: 17, reversed: false, noise: -70, time: '', step: 'x' }; phase = 'practice'; word.shown = 'flat'; acceptCal(0); word.shown = 'flat';
       renderPractice({ pos: pos, fund: -12, cents: 4, level: -20 });
     }
   };
