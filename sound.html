@@ -128,13 +128,14 @@ th:first-child, td:first-child { text-align: left; }
       <button class="btn" id="clear">Clear</button>
     </div>
   </section>
-  <p class="hint" id="buildTag" style="text-align:center;opacity:.6">Sound test v1c</p>
+  <p class="hint" id="buildTag" style="text-align:center;opacity:.6">Sound test v1d</p>
 </main>
 <script>
 (function () {
   'use strict';
   // ---------- constants (tune these) ----------
   var TARGET_HZ = 698.46;       // written G on B-flat trumpet = concert F5 at A=440
+  var LOW_OCTAVE = true;        // also accept the G an octave lower (concert F4, 349.23 Hz)
   var FOCUS_MIN = 1.2;          // balanced notes measured +1.1 to +6.8; flat -6.4 to +1.3; pinched -13.1 to -1.6
   var H2_FLAT = -6.0;           // H2_REL above this = flat-leaning. Balanced -22.0 to -7.2; flat -4.4 to +21.6
   var FUND_PINCH = -5.0;        // FUND_SHARE below this = pinched-leaning. Balanced -4.7 to -1.3; pinched -15.2 to -4.5
@@ -225,7 +226,7 @@ th:first-child, td:first-child { text-align: left; }
 
   // ---------- analysis: buf = last WINDOW samples. Returns null if not a playable reading ----------
   function analyze(buf, sr, aRef) {
-    var tg = TARGET_HZ * aRef / 440, n = buf.length, i;
+    var tgHigh = TARGET_HZ * aRef / 440, tg = tgHigh, n = buf.length, i;
     var rms = 0;
     for (i = 0; i < n; i++) rms += buf[i] * buf[i];
     rms = Math.sqrt(rms / n);
@@ -234,7 +235,8 @@ th:first-child, td:first-child { text-align: left; }
     var yf = yin(buf.subarray(n - 2 * YIN_W), sr);
     if (yf <= 0) return { quiet: true, level: level, why: 'Hearing sound but no clear pitch. Play a steady written G.' };
     var yc = 1200 * Math.log2(yf / tg);
-    if (Math.abs(yc) > PITCH_RANGE_CENTS) return { quiet: true, level: level, why: 'Hearing ' + Math.round(yf) + ' Hz. Written G is ' + Math.round(tg) + ' Hz.' };
+    if (LOW_OCTAVE && Math.abs(1200 * Math.log2(yf / (tgHigh / 2))) < Math.abs(yc)) { tg = tgHigh / 2; yc = 1200 * Math.log2(yf / tg); }
+    if (Math.abs(yc) > PITCH_RANGE_CENTS) return { quiet: true, level: level, why: 'Hearing ' + Math.round(yf) + ' Hz. Written G is ' + Math.round(tgHigh) + ' Hz' + (LOW_OCTAVE ? ' or ' + Math.round(tgHigh / 2) + ' Hz' : '') + '.' };
 
     var N = n * PAD_FACTOR;
     if (!hann || hann.length !== n) {
@@ -266,7 +268,7 @@ th:first-child, td:first-child { text-align: left; }
     var up = 0;
     for (k = 5; k <= 10; k++) up += h[k];
     return {
-      f0: f0, cents: cents, level: level,
+      f0: f0, target: tg, cents: cents, level: level,
       focus: db(harm / Math.max(tot - harm, 1e-30)),
       h2: db(h[2] / h[1]), h3: db(h[3] / h[1]), h4: db(h[4] / h[1]),
       fund: db(sum((1 - FUND_BAND) * f0, (1 + FUND_BAND) * f0) / sum(FUND_TOT_LO, FUND_TOT_HI)),
@@ -410,8 +412,8 @@ th:first-child, td:first-child { text-align: left; }
   var saved = [];
   try { saved = JSON.parse(localStorage.getItem(STORE_KEY) || '[]'); } catch (e) {}
   function persist() { try { localStorage.setItem(STORE_KEY, JSON.stringify(saved)); } catch (e) {} }
-  var COLS = ['time', 'label', 'verdict', 'cents', 'level', 'focus', 'h2_rel', 'fund_share', 'h3_rel', 'h4_rel', 'upper'];
-  function row(n) { return [n.time, n.label, n.verdict, n.cents, n.level, n.focus, n.h2, n.fund, n.h3, n.h4, n.upper]; }
+  var COLS = ['time', 'label', 'verdict', 'target_hz', 'cents', 'level', 'focus', 'h2_rel', 'fund_share', 'h3_rel', 'h4_rel', 'upper'];
+  function row(n) { return [n.time, n.label, n.verdict, n.target || 0, n.cents, n.level, n.focus, n.h2, n.fund, n.h3, n.h4, n.upper]; }
   function csv() {
     var lines = [COLS.join(',')];
     saved.forEach(function (n) { lines.push(row(n).map(function (v) { return typeof v === 'number' ? v.toFixed(2) : '"' + String(v).replace(/"/g, '""') + '"'; }).join(',')); });
@@ -431,7 +433,7 @@ th:first-child, td:first-child { text-align: left; }
   $('save').addEventListener('click', function () {
     if (!noteReadings.length) return;
     var m = medianOf(noteReadings);
-    pending = { time: new Date().toISOString(), label: '', verdict: verdictOf(m), cents: m.cents, level: m.level, focus: m.focus, h2: m.h2, fund: m.fund, h3: m.h3, h4: m.h4, upper: m.upper };
+    pending = { time: new Date().toISOString(), label: '', verdict: verdictOf(m), target: noteReadings[noteReadings.length - 1].target, cents: m.cents, level: m.level, focus: m.focus, h2: m.h2, fund: m.fund, h3: m.h3, h4: m.h4, upper: m.upper };
     saved.push(pending); persist(); renderTable();
     $('ask').hidden = false;
   });
