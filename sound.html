@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sound test (beta)</title>
+<style>
+:root {
+  /* Layout: one centered column. Mode tabs, shared setup, then either the drone or the tuner. */
+  --bg: #eef0ed;
+  --surface: #ffffff;
+  --ink: #17211e;
+  --muted: #5d6b66;
+  --line: #d3d9d5;
+  --accent: #0f6b5c;
+  --accent-ink: #ffffff;
+  --good: #1f8a4c;
+  --warn: #b45f06;
+  --font-display: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  --font-body: "Instrument Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1614; --surface: #17211e; --ink: #e6ede9; --muted: #8fa19a;
+    --line: #2b3a35; --accent: #4fc2a9; --accent-ink: #07211b;
+    --good: #5bd48a; --warn: #f0a04b;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1614; --surface: #17211e; --ink: #e6ede9; --muted: #8fa19a;
+  --line: #2b3a35; --accent: #4fc2a9; --accent-ink: #07211b;
+    --good: #5bd48a; --warn: #f0a04b;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 16px; line-height: 1.4; -webkit-tap-highlight-color: transparent; }
+main { max-width: 480px; margin: 0 auto; padding: 20px 16px 48px; display: flex; flex-direction: column; gap: 16px; }
+h1 { font-size: 13px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0; }
+button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 16px; display: flex; flex-direction: column; gap: 16px; }
+.row { display: flex; flex-direction: column; gap: 8px; }
+.label { display: flex; justify-content: space-between; align-items: baseline; font-size: 14px; font-weight: 600; }
+.label output { font-family: var(--font-display); font-weight: 400; color: var(--muted); font-size: 14px; font-variant-numeric: tabular-nums; }
+.hint { margin: 0; font-size: 13px; color: var(--muted); }
+
+select { width: 100%; min-height: 48px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); color: var(--ink); font: 500 16px var(--font-body); padding: 0 12px; }
+
+.seg { display: flex; gap: 6px; }
+.seg button { flex: 1 1 0; min-height: 44px; border: 1px solid var(--line); border-radius: 10px; background: transparent; color: var(--ink); font: 500 15px var(--font-body); cursor: pointer; padding: 0 4px; }
+.seg button[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--bg); }
+
+
+.big { font: 700 40px var(--font-body); text-align: center; min-height: 48px; }
+.prompt { font: 600 22px var(--font-body); text-align: center; }
+.meter { position: relative; height: 28px; border-radius: 14px; background: var(--bg); border: 1px solid var(--line); overflow: hidden; }
+.meter .fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: var(--muted); transition: width .1s linear; }
+.meter.ok .fill { background: var(--good); }
+.meter .mark { position: absolute; top: 0; bottom: 0; width: 3px; background: var(--ink); opacity: .7; }
+.cents { text-align: center; font: 400 16px var(--font-display); color: var(--muted); min-height: 22px; }
+.v-ok { color: var(--good); } .v-warn { color: var(--warn); }
+.btn { min-height: 52px; border-radius: 12px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); font: 600 17px var(--font-body); cursor: pointer; padding: 0 12px; width: 100%; }
+.btn.main { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.btn[disabled] { opacity: .4; cursor: default; }
+.wrap { display: flex; flex-wrap: wrap; gap: 6px; }
+.wrap .btn { flex: 1 1 40%; min-height: 46px; font-size: 15px; }
+details summary { cursor: pointer; font-weight: 600; min-height: 44px; display: flex; align-items: center; }
+.kv { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; font: 400 15px var(--font-display); }
+.tbl { overflow-x: auto; }
+table { border-collapse: collapse; font: 400 12px var(--font-display); width: 100%; }
+th, td { border-bottom: 1px solid var(--line); padding: 4px 6px; text-align: right; white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; }
+.note { color: var(--warn); font-size: 13px; margin: 0; }
+
+</style>
+</head>
+<body>
+<main>
+  <h1>Sound test (beta)</h1>
+  <section class="card">
+    <div class="prompt" id="prompt">Play written G</div>
+    <div class="meter" id="meter" role="meter" aria-label="Focus" aria-valuemin="0" aria-valuemax="100"><div class="fill" id="fill"></div><div class="mark" id="mark"></div></div>
+    <div class="big" id="verdict" aria-live="polite"></div>
+    <div class="cents" id="cents"></div>
+    <button class="btn main" id="go">Start listening</button>
+    <p class="note" id="agcNote" hidden></p>
+    <p class="hint" id="msg"></p>
+    <details>
+      <summary>Details</summary>
+      <div class="kv">
+        <span>FOCUS (dB)</span><span id="dFocus">–</span>
+        <span>H2_REL (dB)</span><span id="dH2">–</span>
+        <span>FUND_SHARE (dB)</span><span id="dFund">–</span>
+        <span>LEVEL (dBFS)</span><span id="dLevel">–</span>
+        <span>Cents</span><span id="dCents">–</span>
+      </div>
+      <div class="row" style="margin-top:12px">
+        <div class="label">Orchestra A</div>
+        <div class="seg" id="refSeg" role="group" aria-label="Orchestra A in hertz">
+          <button data-v="415" aria-pressed="false">415</button>
+          <button data-v="440" aria-pressed="true">440</button>
+          <button data-v="442" aria-pressed="false">442</button>
+          <button data-v="443" aria-pressed="false">443</button>
+        </div>
+      </div>
+    </details>
+  </section>
+
+  <section class="card">
+    <button class="btn" id="save" disabled>Save this note</button>
+    <div id="ask" hidden>
+      <div class="label" style="margin-bottom:8px">What were you playing?</div>
+      <div class="wrap" id="labels">
+        <button class="btn" data-l="Balanced">Balanced</button>
+        <button class="btn" data-l="Flat">Flat</button>
+        <button class="btn" data-l="Pinched">Pinched</button>
+        <button class="btn" data-l="Slightly flat">Slightly flat</button>
+        <button class="btn" data-l="Slightly pinched">Slightly pinched</button>
+      </div>
+    </div>
+    <div class="tbl"><table id="tbl"><thead><tr><th>#</th><th>label</th><th>verdict</th><th>cents</th><th>level</th><th>focus</th><th>h2</th><th>fund</th><th>h3</th><th>h4</th><th>upper</th></tr></thead><tbody></tbody></table></div>
+    <div class="wrap">
+      <button class="btn" id="copy">Copy all as CSV</button>
+      <button class="btn" id="dl">Download CSV</button>
+      <button class="btn" id="clear">Clear</button>
+    </div>
+  </section>
+  <p class="hint" id="buildTag" style="text-align:center;opacity:.6">Sound test v1a</p>
+</main>
+<script>
+(function () {
+  'use strict';
+  // ---------- constants (tune these) ----------
+  var TARGET_HZ = 698.46;       // written G on B-flat trumpet = concert F5 at A=440
+  var FOCUS_MIN = 1.2;          // balanced notes measured +1.1 to +6.8; flat -6.4 to +1.3; pinched -13.1 to -1.6
+  var H2_FLAT = -6.0;           // H2_REL above this = flat-leaning. Balanced -22.0 to -7.2; flat -4.4 to +21.6
+  var FUND_PINCH = -5.0;        // FUND_SHARE below this = pinched-leaning. Balanced -4.7 to -1.3; pinched -15.2 to -4.5
+  var CENTS_SHARP = 20;         // supporting clue only
+  var WINDOW = 32768;           // samples analysed
+  var PAD_FACTOR = 4;           // zero-pad FFT to this multiple
+  var ANALYSIS_MS = 100;        // time between analyses
+  var PITCH_RANGE_CENTS = 150;  // only analyse within this of target
+  var REFINE_CENTS = 60;        // spectral f0 refinement range around YIN f0
+  var LEVEL_MIN_DBFS = -50;     // quiet below this
+  var HOLD_MIN_S = 0.5;         // note held this long before showing a verdict
+  var HOLD_GRACE_MS = 300;      // gap that does not reset the hold
+  var SMOOTH_N = 5;             // median of last N readings
+  var METER_MIN_DB = -10;       // FOCUS shown as 0%
+  var METER_MAX_DB = 7;         // FOCUS shown as 100%
+  var HK_BAND = 0.03;           // +-3% around each harmonic for hk
+  var HARM_HALF_HZ = 15;        // +-Hz around each harmonic for HARM
+  var HARM_COUNT = 11;
+  var FUND_BAND = 0.1;          // fundamental share band +-10%
+  var FUND_TOT_LO = 40, FUND_TOT_HI = 12000;
+  var FOCUS_TOT_LO = 40, FOCUS_TOT_HI = 8000;
+  var YIN_W = 2048, YIN_THRESH = 0.15, YIN_MAX_HZ = 2200;
+  var STORE_KEY = 'orchestra-sound-test';
+
+  function $(id) { return document.getElementById(id); }
+  var a4 = 440;
+  try { var sv = JSON.parse(localStorage.getItem('orchestra-drone') || '{}'); if (sv.a4 >= 410 && sv.a4 <= 450) a4 = +sv.a4; } catch (e) {}
+  function target() { return TARGET_HZ * a4 / 440; }
+
+  // ---------- pitch (YIN, copied from index.html) ----------
+  var yd = new Float32Array(YIN_W);
+  function yin(x, sr) {
+    var i, tau;
+    yd[0] = 1;
+    var running = 0;
+    for (tau = 1; tau < YIN_W; tau++) {
+      var sum = 0;
+      for (i = 0; i < YIN_W; i++) { var diff = x[i] - x[i + tau]; sum += diff * diff; }
+      running += sum;
+      yd[tau] = running === 0 ? 1 : sum * tau / running;
+    }
+    var minTau = Math.floor(sr / YIN_MAX_HZ);
+    var found = -1;
+    for (tau = Math.max(2, minTau); tau < YIN_W - 1; tau++) {
+      if (yd[tau] < YIN_THRESH) {
+        while (tau + 1 < YIN_W - 1 && yd[tau + 1] < yd[tau]) tau++;
+        found = tau;
+        break;
+      }
+    }
+    if (found < 0) return -1;
+    var a = yd[found - 1], b = yd[found], c = yd[found + 1];
+    var shift = (a - c) / (2 * (a - 2 * b + c) || 1);
+    return sr / (found + shift);
+  }
+
+  // ---------- FFT (radix-2, in place) ----------
+  var fftCache = {};
+  function fft(re, im) {
+    var n = re.length, i, j, k, m;
+    var t = fftCache[n];
+    if (!t) {
+      var cs = new Float64Array(n / 2), sn = new Float64Array(n / 2);
+      for (i = 0; i < n / 2; i++) { cs[i] = Math.cos(2 * Math.PI * i / n); sn[i] = -Math.sin(2 * Math.PI * i / n); }
+      var rev = new Uint32Array(n), bits = Math.round(Math.log2(n));
+      for (i = 0; i < n; i++) { var r = 0; for (j = 0; j < bits; j++) if (i & (1 << j)) r |= 1 << (bits - 1 - j); rev[i] = r; }
+      t = fftCache[n] = { cs: cs, sn: sn, rev: rev };
+    }
+    for (i = 0; i < n; i++) { j = t.rev[i]; if (j > i) { var a = re[i]; re[i] = re[j]; re[j] = a; a = im[i]; im[i] = im[j]; im[j] = a; } }
+    for (var size = 2; size <= n; size <<= 1) {
+      var half = size >> 1, step = n / size;
+      for (i = 0; i < n; i += size) {
+        for (j = i, k = 0; j < i + half; j++, k += step) {
+          m = j + half;
+          var tr = re[m] * t.cs[k] - im[m] * t.sn[k], ti = re[m] * t.sn[k] + im[m] * t.cs[k];
+          re[m] = re[j] - tr; im[m] = im[j] - ti; re[j] += tr; im[j] += ti;
+        }
+      }
+    }
+  }
+
+  var hann = null;
+  function db(x) { return 10 * Math.log10(Math.max(x, 1e-30)); }
+  function median(arr) {
+    var t = arr.slice().sort(function (p, q) { return p - q; });
+    return t[Math.floor(t.length / 2)];
+  }
+
+  // ---------- analysis: buf = last WINDOW samples. Returns null if not a playable reading ----------
+  function analyze(buf, sr, aRef) {
+    var tg = TARGET_HZ * aRef / 440, n = buf.length, i;
+    var rms = 0;
+    for (i = 0; i < n; i++) rms += buf[i] * buf[i];
+    rms = Math.sqrt(rms / n);
+    var level = 20 * Math.log10(Math.max(rms, 1e-9));
+    if (level < LEVEL_MIN_DBFS) return { quiet: true, level: level };
+    var yf = yin(buf.subarray(n - 2 * YIN_W), sr);
+    if (yf <= 0) return { quiet: true, level: level };
+    var yc = 1200 * Math.log2(yf / tg);
+    if (Math.abs(yc) > PITCH_RANGE_CENTS) return { quiet: true, level: level, off: true };
+
+    var N = n * PAD_FACTOR;
+    if (!hann || hann.length !== n) {
+      hann = new Float64Array(n);
+      for (i = 0; i < n; i++) hann[i] = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / (n - 1));
+    }
+    var re = new Float64Array(N), im = new Float64Array(N);
+    for (i = 0; i < n; i++) re[i] = buf[i] * hann[i];
+    fft(re, im);
+    var half = N / 2, S = new Float64Array(half);
+    for (i = 0; i < half; i++) S[i] = re[i] * re[i] + im[i] * im[i];
+    var df = sr / N;
+    function bin(f) { return Math.max(0, Math.min(half - 1, Math.round(f / df))); }
+    function sum(lo, hi) { var t = 0; for (var b = bin(lo); b <= bin(hi); b++) t += S[b]; return t; }
+    function mx(lo, hi) { var t = 0; for (var b = bin(lo); b <= bin(hi); b++) if (S[b] > t) t = S[b]; return t; }
+
+    // refine f0
+    var lo = yf * Math.pow(2, -REFINE_CENTS / 1200), hi = yf * Math.pow(2, REFINE_CENTS / 1200);
+    var best = bin(lo);
+    for (var b = bin(lo); b <= bin(hi); b++) if (S[b] > S[best]) best = b;
+    var f0 = best * df;
+    var cents = 1200 * Math.log2(f0 / tg);
+
+    var h = [0];
+    for (var k = 1; k <= 10; k++) h.push(mx((1 - HK_BAND) * k * f0, (1 + HK_BAND) * k * f0));
+    var harm = 0;
+    for (k = 1; k <= HARM_COUNT; k++) harm += sum(k * f0 - HARM_HALF_HZ, k * f0 + HARM_HALF_HZ);
+    var tot = sum(FOCUS_TOT_LO, FOCUS_TOT_HI);
+    var up = 0;
+    for (k = 5; k <= 10; k++) up += h[k];
+    return {
+      f0: f0, cents: cents, level: level,
+      focus: db(harm / Math.max(tot - harm, 1e-30)),
+      h2: db(h[2] / h[1]), h3: db(h[3] / h[1]), h4: db(h[4] / h[1]),
+      fund: db(sum((1 - FUND_BAND) * f0, (1 + FUND_BAND) * f0) / sum(FUND_TOT_LO, FUND_TOT_HI)),
+      upper: db(up / h[1])
+    };
+  }
+
+  function verdictOf(f) {
+    if (f.focus >= FOCUS_MIN && f.h2 <= H2_FLAT && f.fund >= FUND_PINCH) return 'Centered';
+    if (f.h2 > H2_FLAT && f.cents < CENTS_SHARP) return 'Aim higher';
+    if (f.fund < FUND_PINCH || f.cents >= CENTS_SHARP) return 'Aim lower';
+    return 'Not centered';
+  }
+  var FEATS = ['cents', 'level', 'focus', 'h2', 'fund', 'h3', 'h4', 'upper'];
+  function medianOf(list) {
+    var o = {};
+    FEATS.forEach(function (k) { o[k] = median(list.map(function (r) { return r[k]; })); });
+    return o;
+  }
+
+  // ---------- live state ----------
+  var ctx, analyser, stream, buf, timer = 0, listening = false;
+  var recent = [], noteReadings = [], holdStart = 0, lastGoodT = 0, shown = null, lastMedian = null, pending = null;
+
+  function fmt(x, d) { return (x >= 0 ? '+' : '') + x.toFixed(d === undefined ? 1 : d); }
+
+  function resetNote() { recent = []; noteReadings = []; holdStart = 0; shown = null; lastMedian = null; }
+
+  function tick() {
+    if (!listening) return;
+    analyser.getFloatTimeDomainData(buf);
+    var now = performance.now();
+    var r = analyze(buf, ctx.sampleRate, a4);
+    if (r && r.level !== undefined) $('dLevel').textContent = r.level.toFixed(1);
+    if (!r || r.quiet) {
+      if (holdStart && now - lastGoodT > HOLD_GRACE_MS) resetNote();
+      if (!holdStart) render(null);
+      return;
+    }
+    lastGoodT = now;
+    if (!holdStart) holdStart = now;
+    recent.push(r); if (recent.length > SMOOTH_N) recent.shift();
+    noteReadings.push(r);
+    var m = medianOf(recent);
+    var held = (now - holdStart) / 1000 >= HOLD_MIN_S;
+    lastMedian = m;
+    render(m, held);
+  }
+
+  function setMeter(v) {
+    var pct = v === null ? 0 : Math.max(0, Math.min(100, (v - METER_MIN_DB) / (METER_MAX_DB - METER_MIN_DB) * 100));
+    $('fill').style.width = pct + '%';
+    $('meter').setAttribute('aria-valuenow', Math.round(pct));
+  }
+
+  function render(m, held) {
+    var vEl = $('verdict');
+    if (!m) {
+      $('prompt').textContent = 'Play written G';
+      setMeter(null); $('meter').className = 'meter';
+      vEl.textContent = ''; vEl.className = 'big'; $('cents').textContent = '';
+      $('save').disabled = true;
+      return;
+    }
+    $('prompt').textContent = 'Play written G';
+    setMeter(m.focus);
+    $('dFocus').textContent = fmt(m.focus); $('dH2').textContent = fmt(m.h2); $('dFund').textContent = fmt(m.fund);
+    $('dLevel').textContent = m.level.toFixed(1); $('dCents').textContent = fmt(m.cents, 0);
+    $('cents').textContent = fmt(m.cents, 0) + ' cents';
+    if (!held) { vEl.textContent = '…'; vEl.className = 'big'; $('meter').className = 'meter'; $('save').disabled = true; shown = null; return; }
+    shown = verdictOf(m);
+    vEl.textContent = shown;
+    vEl.className = 'big ' + (shown === 'Centered' ? 'v-ok' : 'v-warn');
+    $('meter').className = 'meter' + (shown === 'Centered' ? ' ok' : '');
+    $('save').disabled = false;
+  }
+
+  function start() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { $('msg').textContent = 'This browser cannot reach the microphone. Open this page over https.'; return; }
+    navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } }).then(function (st) {
+      stream = st;
+      var AC = window.AudioContext || window.webkitAudioContext;
+      ctx = new AC();
+      var src = ctx.createMediaStreamSource(st);
+      analyser = ctx.createAnalyser();
+      analyser.fftSize = WINDOW;
+      analyser.smoothingTimeConstant = 0;
+      buf = new Float32Array(WINDOW);
+      src.connect(analyser);
+      ctx.resume();
+      try {
+        var gs = st.getAudioTracks()[0].getSettings();
+        var bad = [];
+        if (gs.autoGainControl) bad.push('auto gain');
+        if (gs.noiseSuppression) bad.push('noise suppression');
+        if (gs.echoCancellation) bad.push('echo cancellation');
+        var n = $('agcNote');
+        n.hidden = !bad.length;
+        n.textContent = bad.length ? 'This browser left ' + bad.join(' and ') + ' on. Readings may be off.' : '';
+      } catch (e) {}
+      listening = true; resetNote();
+      $('go').textContent = 'Stop listening'; $('go').setAttribute('aria-pressed', 'true');
+      $('msg').textContent = 'Listening. Hold the note at least half a second.';
+      timer = setInterval(tick, ANALYSIS_MS);
+    }).catch(function () { $('msg').textContent = 'Microphone not allowed. Allow it in the browser settings.'; });
+  }
+  function stop() {
+    listening = false; clearInterval(timer);
+    if (stream) stream.getTracks().forEach(function (t) { t.stop(); });
+    if (ctx) ctx.close();
+    resetNote(); render(null);
+    $('go').textContent = 'Start listening'; $('go').setAttribute('aria-pressed', 'false');
+    $('msg').textContent = '';
+  }
+  $('go').addEventListener('click', function () { listening ? stop() : start(); });
+
+  // ---------- reference A ----------
+  function markRef() {
+    Array.prototype.forEach.call($('refSeg').children, function (b) { b.setAttribute('aria-pressed', String(+b.dataset.v === a4)); });
+  }
+  $('refSeg').addEventListener('click', function (e) {
+    var b = e.target.closest('button'); if (!b) return;
+    a4 = +b.dataset.v; markRef(); resetNote();
+  });
+  markRef();
+  $('mark').style.left = ((FOCUS_MIN - METER_MIN_DB) / (METER_MAX_DB - METER_MIN_DB) * 100) + '%';
+
+  // ---------- saved notes ----------
+  var saved = [];
+  try { saved = JSON.parse(localStorage.getItem(STORE_KEY) || '[]'); } catch (e) {}
+  function persist() { try { localStorage.setItem(STORE_KEY, JSON.stringify(saved)); } catch (e) {} }
+  var COLS = ['time', 'label', 'verdict', 'cents', 'level', 'focus', 'h2_rel', 'fund_share', 'h3_rel', 'h4_rel', 'upper'];
+  function row(n) { return [n.time, n.label, n.verdict, n.cents, n.level, n.focus, n.h2, n.fund, n.h3, n.h4, n.upper]; }
+  function csv() {
+    var lines = [COLS.join(',')];
+    saved.forEach(function (n) { lines.push(row(n).map(function (v) { return typeof v === 'number' ? v.toFixed(2) : '"' + String(v).replace(/"/g, '""') + '"'; }).join(',')); });
+    return lines.join('\n');
+  }
+  function renderTable() {
+    var tb = $('tbl').tBodies[0];
+    tb.innerHTML = '';
+    saved.forEach(function (n, i) {
+      var tr = document.createElement('tr');
+      [i + 1, n.label || '–', n.verdict, n.cents.toFixed(0), n.level.toFixed(0), n.focus.toFixed(1), n.h2.toFixed(1), n.fund.toFixed(1), n.h3.toFixed(1), n.h4.toFixed(1), n.upper.toFixed(1)].forEach(function (v) {
+        var td = document.createElement('td'); td.textContent = v; tr.appendChild(td);
+      });
+      tb.appendChild(tr);
+    });
+  }
+  $('save').addEventListener('click', function () {
+    if (!noteReadings.length) return;
+    var m = medianOf(noteReadings);
+    pending = { time: new Date().toISOString(), label: '', verdict: verdictOf(m), cents: m.cents, level: m.level, focus: m.focus, h2: m.h2, fund: m.fund, h3: m.h3, h4: m.h4, upper: m.upper };
+    saved.push(pending); persist(); renderTable();
+    $('ask').hidden = false;
+  });
+  $('labels').addEventListener('click', function (e) {
+    var b = e.target.closest('button'); if (!b || !pending) return;
+    pending.label = b.dataset.l; persist(); renderTable();
+    pending = null; $('ask').hidden = true;
+  });
+  $('copy').addEventListener('click', function () {
+    var t = csv();
+    var done = function () { $('msg').textContent = 'Copied ' + saved.length + ' notes.'; };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(done, function () { $('msg').textContent = 'Copy blocked. Use Download CSV.'; });
+    else $('msg').textContent = 'Copy not available. Use Download CSV.';
+  });
+  $('dl').addEventListener('click', function () {
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([csv()], { type: 'text/csv' }));
+    a.download = 'sound-test.csv';
+    document.body.appendChild(a); a.click(); a.remove();
+  });
+  var clearArmed = 0;
+  $('clear').addEventListener('click', function () {
+    if (!clearArmed) { clearArmed = 1; $('clear').textContent = 'Tap again to clear'; setTimeout(function () { clearArmed = 0; $('clear').textContent = 'Clear'; }, 3000); return; }
+    saved = []; persist(); renderTable(); $('ask').hidden = true; pending = null; clearArmed = 0; $('clear').textContent = 'Clear';
+  });
+  renderTable();
+
+  // hook for tests
+  window.__sound = { analyze: analyze, verdictOf: verdictOf, TARGET_HZ: TARGET_HZ, WINDOW: WINDOW };
+})();
+</script>
+</body>
+</html>
