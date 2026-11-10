@@ -170,8 +170,9 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
 .hear[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
 .hear.sm { min-height: 36px; padding: 0 8px; }
 .rep .rv .hear { align-self: auto; }
-#modeSeg button { font-size: 14px; padding-left: 4px; padding-right: 4px; }
-@media (max-width: 360px) { #modeSeg { flex-wrap: wrap; } #modeSeg button { flex: 1 0 30%; } }
+#modeSeg { flex-wrap: wrap; }
+#modeSeg button { font-size: 14px; padding-left: 4px; padding-right: 4px; flex: 1 0 22%; }
+
 #trNudge button { font-variant-numeric: tabular-nums; }
 .rbar u { position: absolute; top: 0; width: 10px; height: 10px; margin-left: -5px; border-radius: 50%; border: 2px solid var(--muted); background: var(--surface); box-sizing: border-box; text-decoration: none; }
 .hold div.good { background: var(--good); }
@@ -425,6 +426,7 @@ main { padding-bottom: 120px; }
         <button data-v="target" aria-pressed="false">Target</button>
         <button data-v="scale" aria-pressed="false">Scale</button>
         <button data-v="climb" aria-pressed="false">Climb</button>
+        <button data-v="free" aria-pressed="false">Free</button>
         <button data-v="mine" aria-pressed="false">My notes</button>
         <button data-v="beats" aria-pressed="false">Beats</button>
       </div>
@@ -583,7 +585,7 @@ main { padding-bottom: 120px; }
   </section>
   </div>
 
-  <p class="hint" id="buildTag" style="text-align:center;opacity:.6">Version: Nov 8p, Smiley when in tune</p>
+  <p class="hint" id="buildTag" style="text-align:center;opacity:.6">Version: Nov 10a, Free mode: root only, click in and out</p>
   <p class="msg" id="msg">Tap Start, allow the microphone, then play one note at a time. The reading is in cents: 100 cents is one half step.</p>
 
   </div>
@@ -1127,7 +1129,8 @@ main { padding-bottom: 120px; }
     target: 'Pick the note you are playing. The meter shows how far you are from its pure (just) pitch over the key.',
     scale:  'Play one note at a time and hold each for at least 2 seconds in total. Breaths and restarts are fine. It moves on when you play the next note.',
     climb:  'The scale plays the root and the next note. Land within 5 cents and you hear a ping. Hold it there for 3.5 seconds and it moves up. Use headphones so the mic only hears you.',
-    beats:  'Ear training. Tune one note against a steady one. The wobble slows as you get closer and disappears when it is in tune.',
+    free:   'Only the root plays. Play your scale in any order. It finds which note you are on and clicks up when you are within 5 cents of pure, and clicks down when you leave. Use headphones.',
+  beats:  'Ear training. Tune one note against a steady one. The wobble slows as you get closer and disappears when it is in tune.',
     mine:   'Play a chromatic scale slowly. The chart saves which notes you tend to play sharp or flat on this instrument.'
   };
 
@@ -1312,7 +1315,7 @@ main { padding-bottom: 120px; }
   }
   // On / off: bright green IN TUNE banner, a steady soft tone while you are in the zone, a falling blip when you leave it
   function zoneUI() {
-    var show = tMode === 'climb' && listening && !cin.on && !!guideStep();
+    var show = listening && !cin.on && ((tMode === 'climb' && !!guideStep()) || tMode === 'free');
     $('zoneBar').hidden = !show;
     $('zoneBar').textContent = climb.locked ? 'IN TUNE' : 'OFF';
     $('zoneBar').classList.toggle('on', climb.locked);
@@ -1324,6 +1327,33 @@ main { padding-bottom: 120px; }
     if (on) ping([1175, 1760], 1, 0.085);                      // rising two-note check mark: tik-TOK
     else if (!quiet) ping([880, 587], 1, 0.085, 'triangle');   // falling two notes: tok-tik
     zoneUI();
+  }
+  // Free mode: only the root plays. Name the nearest scale note and click in/out against its pure pitch.
+  function freeTone() {
+    if (!listening || tMode !== 'free') return;
+    var root = baseFreq();
+    if (climbV.length && climbV.freeF === root) return;
+    climbOff();
+    audioReady().then(function () {
+      if (climbV.length || !listening || tMode !== 'free') return;
+      root = baseFreq();
+      var t = ctx.currentTime, boost = root < 150 ? 1 + (150 - root) / 100 : 1;   // low roots sound quieter, so they get a lift
+      var o = ctx.createOscillator(), fl = ctx.createBiquadFilter(), g = ctx.createGain(), lv = Math.max(0.05, s.vol) * 0.33 * Math.min(boost, 2);
+      o.type = 'sawtooth'; o.frequency.value = root;
+      fl.type = 'lowpass'; fl.frequency.value = 2600;
+      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(lv, t + 0.06);
+      o.connect(fl); fl.connect(g); g.connect(ctx.destination); o.start(t);
+      climbV.push({ o: o, g: g }); climbV.freeF = root;
+    });
+  }
+  function freeFeed(f, ts) {
+    var a = 1200 * Math.log(f / s.a4) / Math.LN2, pcC = mod1200(a - rootAbs());
+    var dev = dd(pcC, justCents(scaleDegs()[nearestDeg(pcC)]));
+    if (Math.abs(dev) <= CLIMB_TOL) { climb.out = 0; zone(true); }
+    else {
+      if (!climb.out) climb.out = ts;
+      if (ts - climb.out > 150) zone(false);
+    }
   }
   function climbFeed(f, ts) {
     var st = guideStep();
@@ -1579,11 +1609,12 @@ main { padding-bottom: 120px; }
     if (changed && guided()) guideStart(); else if (guided()) renderGuide(); else renderScaleRep();
     renderTend();
     trRender();
+    if (tMode === 'free') freeTone();
   }
 
   function tModeUI() {
     segEnd();
-    $('tOpts').hidden = !(tMode === 'target' || guided() || tMode === 'beats');
+    $('tOpts').hidden = !(tMode === 'target' || tMode === 'free' || guided() || tMode === 'beats');
     $('tDegRow').hidden = tMode !== 'target';
     $('scaleCard').hidden = tMode !== 'scale';
     $('tendCard').hidden = tMode !== 'mine';
@@ -1594,14 +1625,15 @@ main { padding-bottom: 120px; }
     if (tMode !== 'scale') hearStop();
     $('guideCard').hidden = !guided();
     $('tDirRow').hidden = !guided();
-    if (tMode !== 'climb') zone(false, true);
-    if (tMode !== 'climb') climbOff();
+    if (tMode !== 'climb' && tMode !== 'free') zone(false, true);
+    if (tMode !== 'climb' && tMode !== 'free') climbOff();
     if (!guided()) cinStop();
     $('modeHint').textContent = HINTS[tMode];
     mark('modeSeg', tMode);
     tRenderOpts();
     if (guided()) guideStart();
     if (listening && tMode === 'climb') beginCount();
+    if (listening && tMode === 'free') freeTone();
     if (listening) tIdle();
   }
 
@@ -1621,6 +1653,7 @@ main { padding-bottom: 120px; }
       else if (tMode === 'mine') segFeed(f);
       else if (tMode === 'scale') guideFeed(tHist.length >= 3 ? median(tHist) : f, ts);
       else if (tMode === 'climb') climbFeed(tHist.length >= 3 ? median(tHist) : f, ts);
+      else if (tMode === 'free') freeFeed(tHist.length >= 3 ? median(tHist) : f, ts);
       // smooth in the pitch domain; snap straight to a new note when the pitch jumps
       var l = 1200 * Math.log(median(tHist) / s.a4) / Math.LN2;
       if (smooth === null || Math.abs(l - smooth) > 50) smooth = l;
@@ -1630,7 +1663,7 @@ main { padding-bottom: 120px; }
       if (ts - lastGood > 250) segEnd();
       if (cin.on) { /* counting in */ }
       else if (tMode === 'scale') guideSilence(ts);
-      else if (tMode === 'climb') climbSilence(ts);
+      else if (tMode === 'climb' || tMode === 'free') climbSilence(ts);
       if (ts - lastGood > 700) {
         tHist = [];
         smooth = null;
@@ -1641,7 +1674,7 @@ main { padding-bottom: 120px; }
 
   function tShow(f) {
     var shift = instById[s.inst].shift, big, line1, tgt, cents, note = '', beat = '';
-    if (tMode === 'target' || guided()) {
+    if (tMode === 'target' || tMode === 'free' || guided()) {
       var root = baseFreq(), l = 1200 * Math.log(f / root) / Math.LN2, pcC = mod1200(l);
       var degs = scaleDegs(), gst = guided() ? guideStep() : null;
       var deg = tMode === 'target' ? tDeg : (gst ? gst.deg : nearestDeg(pcC)), d = degs[deg];
@@ -1732,9 +1765,10 @@ main { padding-bottom: 120px; }
       tHist = []; lastGood = 0; smooth = null;
       $('go').setAttribute('aria-pressed', 'true');
       $('go').textContent = 'Stop listening';
-      tSay(tMode === 'climb' ? 'Use headphones so the microphone hears only you. Get ready for the count-in.' : s.playing ? 'The drone is playing and the microphone may pick it up. Use headphones or stop the drone.' : 'Listening. Play one note at a time.');
+      tSay(tMode === 'free' ? 'Use headphones so the microphone hears only you. Play your scale over the root.' : tMode === 'climb' ? 'Use headphones so the microphone hears only you. Get ready for the count-in.' : s.playing ? 'The drone is playing and the microphone may pick it up. Use headphones or stop the drone.' : 'Listening. Play one note at a time.');
       if (guided() && !guideStep()) guideStart(); else renderGuide();
       if (guided()) beginCount();
+      if (tMode === 'free') freeTone();
       tIdle();
       tRaf = requestAnimationFrame(tLoop);
       if (navigator.wakeLock) {
