@@ -427,6 +427,7 @@ main { padding-bottom: 120px; }
         <button data-v="scale" aria-pressed="false">Scale</button>
         <button data-v="climb" aria-pressed="false">Climb</button>
         <button data-v="free" aria-pressed="false">Free</button>
+        <button data-v="follow" aria-pressed="false">Follow</button>
         <button data-v="mine" aria-pressed="false">My notes</button>
         <button data-v="beats" aria-pressed="false">Beats</button>
       </div>
@@ -592,7 +593,7 @@ main { padding-bottom: 120px; }
   </section>
   </div>
 
-  <p class="hint" id="buildTag" style="text-align:center;opacity:.6">Version: Nov 10b, Option to turn the in/out clicks off</p>
+  <p class="hint" id="buildTag" style="text-align:center;opacity:.6">Version: Nov 10c, Follow mode: drone follows your scale</p>
   <p class="msg" id="msg">Tap Start, allow the microphone, then play one note at a time. The reading is in cents: 100 cents is one half step.</p>
 
   </div>
@@ -1137,6 +1138,7 @@ main { padding-bottom: 120px; }
     scale:  'Play one note at a time and hold each for at least 2 seconds in total. Breaths and restarts are fine. It moves on when you play the next note.',
     climb:  'The scale plays the root and the next note. Land within 5 cents and you hear a ping. Hold it there for 3.5 seconds and it moves up. Use headphones so the mic only hears you.',
     free:   'Only the root plays. Play your scale in any order. It finds which note you are on and clicks up when you are within 5 cents of pure, and clicks down when you leave. Use headphones.',
+  follow: 'Pick the key, then play your scale. The drone follows you: it plays the pure pitch of the note you are on, in that key. Use headphones.',
   beats:  'Ear training. Tune one note against a steady one. The wobble slows as you get closer and disappears when it is in tune.',
     mine:   'Play a chromatic scale slowly. The chart saves which notes you tend to play sharp or flat on this instrument.'
   };
@@ -1355,6 +1357,47 @@ main { padding-bottom: 120px; }
       o.connect(fl); fl.connect(g); g.connect(ctx.destination); o.start(t);
       climbV.push({ o: o, g: g }); climbV.freeF = root;
     });
+  }
+  // Follow mode: one drone note that moves to the pure pitch of whichever scale note you are playing.
+  var fol = { f: 0, cand: [], pend: false, sig: '' }, lastTM = '';
+  function followLv(f) { var boost = f < 150 ? 1 + (150 - f) / 100 : 1; return Math.max(0.05, s.vol) * 0.33 * Math.min(boost, 2); }
+  function followSet(freq) {
+    fol.f = freq;
+    if (climbV.length) {
+      var v = climbV[0], t = ctx.currentTime;
+      v.g.gain.cancelScheduledValues(t);
+      v.g.gain.setValueAtTime(v.g.gain.value, t);
+      v.g.gain.linearRampToValueAtTime(0, t + 0.02);
+      v.o.frequency.setValueAtTime(freq, t + 0.02);
+      v.g.gain.linearRampToValueAtTime(followLv(freq), t + 0.07);
+    } else if (!fol.pend) {
+      fol.pend = true;
+      audioReady().then(function () {
+        fol.pend = false;
+        if (!listening || tMode !== 'follow' || climbV.length) return;
+        var t = ctx.currentTime, o = ctx.createOscillator(), fl = ctx.createBiquadFilter(), g = ctx.createGain();
+        o.type = 'sawtooth'; o.frequency.value = fol.f;
+        fl.type = 'lowpass'; fl.frequency.value = 2600;
+        g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(followLv(fol.f), t + 0.06);
+        o.connect(fl); fl.connect(g); g.connect(ctx.destination); o.start(t);
+        climbV.push({ o: o, g: g });
+      });
+    }
+  }
+  function followSync() {
+    if (!listening || tMode !== 'follow') return;
+    var sig = s.note + ':' + s.scale + ':' + s.octave;
+    if (sig !== fol.sig) { fol.sig = sig; fol.cand = []; followSet(baseFreq()); }
+    else if (!climbV.length && !fol.pend) followSet(fol.f || baseFreq());
+  }
+  function followFeed(f) {
+    var root = baseFreq(), l = 1200 * Math.log(f / root) / Math.LN2, pcC = mod1200(l), deg = nearestDeg(pcC);
+    var tc = justCents(scaleDegs()[deg]), key = tc + 1200 * Math.round((l - tc) / 1200), tgt = root * Math.pow(2, key / 1200);
+    if (Math.abs(l - key) > 40 || Math.abs(tgt / fol.f - 1) < 0.001) { fol.cand = []; return; }
+    var c = fol.cand;
+    if (c.length && c[0] !== key) c = fol.cand = [];
+    c.push(key);
+    if (c.length >= 8) { fol.cand = []; followSet(tgt); }
   }
   function freeFeed(f, ts) {
     var a = 1200 * Math.log(f / s.a4) / Math.LN2, pcC = mod1200(a - rootAbs());
@@ -1620,11 +1663,12 @@ main { padding-bottom: 120px; }
     renderTend();
     trRender();
     if (tMode === 'free') freeTone();
+    followSync();
   }
 
   function tModeUI() {
     segEnd();
-    $('tOpts').hidden = !(tMode === 'target' || tMode === 'free' || guided() || tMode === 'beats');
+    $('tOpts').hidden = !(tMode === 'target' || tMode === 'free' || tMode === 'follow' || guided() || tMode === 'beats');
     $('tDegRow').hidden = tMode !== 'target';
     $('scaleCard').hidden = tMode !== 'scale';
     $('tendCard').hidden = tMode !== 'mine';
@@ -1637,8 +1681,9 @@ main { padding-bottom: 120px; }
     $('tDirRow').hidden = !guided();
     $('tClickRow').hidden = !(tMode === 'climb' || tMode === 'free');
     mark('clickSeg', clickOn ? 'on' : 'off');
+    if (tMode !== lastTM) { climbOff(); fol.sig = ''; lastTM = tMode; }
     if (tMode !== 'climb' && tMode !== 'free') zone(false, true);
-    if (tMode !== 'climb' && tMode !== 'free') climbOff();
+    if (tMode !== 'climb' && tMode !== 'free' && tMode !== 'follow') climbOff();
     if (!guided()) cinStop();
     $('modeHint').textContent = HINTS[tMode];
     mark('modeSeg', tMode);
@@ -1646,6 +1691,7 @@ main { padding-bottom: 120px; }
     if (guided()) guideStart();
     if (listening && tMode === 'climb') beginCount();
     if (listening && tMode === 'free') freeTone();
+    followSync();
     if (listening) tIdle();
   }
 
@@ -1666,6 +1712,7 @@ main { padding-bottom: 120px; }
       else if (tMode === 'scale') guideFeed(tHist.length >= 3 ? median(tHist) : f, ts);
       else if (tMode === 'climb') climbFeed(tHist.length >= 3 ? median(tHist) : f, ts);
       else if (tMode === 'free') freeFeed(tHist.length >= 3 ? median(tHist) : f, ts);
+      else if (tMode === 'follow') followFeed(tHist.length >= 3 ? median(tHist) : f);
       // smooth in the pitch domain; snap straight to a new note when the pitch jumps
       var l = 1200 * Math.log(median(tHist) / s.a4) / Math.LN2;
       if (smooth === null || Math.abs(l - smooth) > 50) smooth = l;
@@ -1676,6 +1723,7 @@ main { padding-bottom: 120px; }
       if (cin.on) { /* counting in */ }
       else if (tMode === 'scale') guideSilence(ts);
       else if (tMode === 'climb' || tMode === 'free') climbSilence(ts);
+      else if (tMode === 'follow' && ts - lastGood > 150) fol.cand = [];
       if (ts - lastGood > 700) {
         tHist = [];
         smooth = null;
@@ -1686,7 +1734,7 @@ main { padding-bottom: 120px; }
 
   function tShow(f) {
     var shift = instById[s.inst].shift, big, line1, tgt, cents, note = '', beat = '';
-    if (tMode === 'target' || tMode === 'free' || guided()) {
+    if (tMode === 'target' || tMode === 'free' || tMode === 'follow' || guided()) {
       var root = baseFreq(), l = 1200 * Math.log(f / root) / Math.LN2, pcC = mod1200(l);
       var degs = scaleDegs(), gst = guided() ? guideStep() : null;
       var deg = tMode === 'target' ? tDeg : (gst ? gst.deg : nearestDeg(pcC)), d = degs[deg];
@@ -1777,10 +1825,11 @@ main { padding-bottom: 120px; }
       tHist = []; lastGood = 0; smooth = null;
       $('go').setAttribute('aria-pressed', 'true');
       $('go').textContent = 'Stop listening';
-      tSay(tMode === 'free' ? 'Use headphones so the microphone hears only you. Play your scale over the root.' : tMode === 'climb' ? 'Use headphones so the microphone hears only you. Get ready for the count-in.' : s.playing ? 'The drone is playing and the microphone may pick it up. Use headphones or stop the drone.' : 'Listening. Play one note at a time.');
+      tSay((tMode === 'free' || tMode === 'follow') ? 'Use headphones so the microphone hears only you. Play your scale over the root.' : tMode === 'climb' ? 'Use headphones so the microphone hears only you. Get ready for the count-in.' : s.playing ? 'The drone is playing and the microphone may pick it up. Use headphones or stop the drone.' : 'Listening. Play one note at a time.');
       if (guided() && !guideStep()) guideStart(); else renderGuide();
       if (guided()) beginCount();
       if (tMode === 'free') freeTone();
+      fol.sig = ''; followSync();
       tIdle();
       tRaf = requestAnimationFrame(tLoop);
       if (navigator.wakeLock) {
