@@ -128,7 +128,7 @@ th:first-child, td:first-child { text-align: left; }
       <button class="btn" id="clear">Clear</button>
     </div>
   </section>
-  <p class="hint" id="buildTag" style="text-align:center;opacity:.6">Sound test v1a</p>
+  <p class="hint" id="buildTag" style="text-align:center;opacity:.6">Sound test v1b</p>
 </main>
 <script>
 (function () {
@@ -144,7 +144,7 @@ th:first-child, td:first-child { text-align: left; }
   var ANALYSIS_MS = 100;        // time between analyses
   var PITCH_RANGE_CENTS = 150;  // only analyse within this of target
   var REFINE_CENTS = 60;        // spectral f0 refinement range around YIN f0
-  var LEVEL_MIN_DBFS = -50;     // quiet below this
+  var LEVEL_MIN_DBFS = -55;     // quiet below this
   var HOLD_MIN_S = 0.5;         // note held this long before showing a verdict
   var HOLD_GRACE_MS = 300;      // gap that does not reset the hold
   var SMOOTH_N = 5;             // median of last N readings
@@ -230,11 +230,11 @@ th:first-child, td:first-child { text-align: left; }
     for (i = 0; i < n; i++) rms += buf[i] * buf[i];
     rms = Math.sqrt(rms / n);
     var level = 20 * Math.log10(Math.max(rms, 1e-9));
-    if (level < LEVEL_MIN_DBFS) return { quiet: true, level: level };
+    if (level < LEVEL_MIN_DBFS) return { quiet: true, level: level, why: 'Too quiet. Play louder or hold the phone closer.' };
     var yf = yin(buf.subarray(n - 2 * YIN_W), sr);
-    if (yf <= 0) return { quiet: true, level: level };
+    if (yf <= 0) return { quiet: true, level: level, why: 'Hearing sound but no clear pitch. Play a steady written G.' };
     var yc = 1200 * Math.log2(yf / tg);
-    if (Math.abs(yc) > PITCH_RANGE_CENTS) return { quiet: true, level: level, off: true };
+    if (Math.abs(yc) > PITCH_RANGE_CENTS) return { quiet: true, level: level, why: 'Hearing ' + Math.round(yf) + ' Hz. Written G is ' + Math.round(tg) + ' Hz.' };
 
     var N = n * PAD_FACTOR;
     if (!hann || hann.length !== n) {
@@ -297,10 +297,14 @@ th:first-child, td:first-child { text-align: left; }
 
   function tick() {
     if (!listening) return;
-    analyser.getFloatTimeDomainData(buf);
-    var now = performance.now();
-    var r = analyze(buf, ctx.sampleRate, a4);
+    var now = performance.now(), r;
+    try {
+      if (ctx.state !== 'running') ctx.resume();
+      analyser.getFloatTimeDomainData(buf);
+      r = analyze(buf, ctx.sampleRate, a4);
+    } catch (e) { $('msg').textContent = 'Error: ' + e.message; return; }
     if (r && r.level !== undefined) $('dLevel').textContent = r.level.toFixed(1);
+    $('msg').textContent = r.quiet ? 'Level ' + r.level.toFixed(0) + ' dBFS. ' + r.why : 'Level ' + r.level.toFixed(0) + ' dBFS. Hearing ' + Math.round(r.f0) + ' Hz.';
     if (!r || r.quiet) {
       if (holdStart && now - lastGoodT > HOLD_GRACE_MS) resetNote();
       if (!holdStart) render(null);
@@ -346,6 +350,7 @@ th:first-child, td:first-child { text-align: left; }
 
   function start() {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { $('msg').textContent = 'This browser cannot reach the microphone. Open this page over https.'; return; }
+    try { if (navigator.audioSession) navigator.audioSession.type = 'play-and-record'; } catch (e) {}
     navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } }).then(function (st) {
       stream = st;
       var AC = window.AudioContext || window.webkitAudioContext;
@@ -357,6 +362,7 @@ th:first-child, td:first-child { text-align: left; }
       buf = new Float32Array(WINDOW);
       src.connect(analyser);
       ctx.resume();
+      $('msg').textContent = 'Listening… (' + ctx.state + ')';
       try {
         var gs = st.getAudioTracks()[0].getSettings();
         var bad = [];
