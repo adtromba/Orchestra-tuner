@@ -128,7 +128,7 @@ th:first-child, td:first-child { text-align: left; }
       <button class="btn" id="clear">Clear</button>
     </div>
   </section>
-  <p class="hint" id="buildTag" style="text-align:center;opacity:.6">Sound test v1b</p>
+  <p class="hint" id="buildTag" style="text-align:center;opacity:.6">Sound test v1c</p>
 </main>
 <script>
 (function () {
@@ -289,7 +289,7 @@ th:first-child, td:first-child { text-align: left; }
 
   // ---------- live state ----------
   var ctx, analyser, stream, buf, timer = 0, listening = false;
-  var recent = [], noteReadings = [], holdStart = 0, lastGoodT = 0, shown = null, lastMedian = null, pending = null;
+  var ticks = 0, recent = [], noteReadings = [], holdStart = 0, lastGoodT = 0, shown = null, lastMedian = null, pending = null;
 
   function fmt(x, d) { return (x >= 0 ? '+' : '') + x.toFixed(d === undefined ? 1 : d); }
 
@@ -298,12 +298,15 @@ th:first-child, td:first-child { text-align: left; }
   function tick() {
     if (!listening) return;
     var now = performance.now(), r;
+    ticks++;
     try {
       if (ctx.state !== 'running') ctx.resume();
       analyser.getFloatTimeDomainData(buf);
       r = analyze(buf, ctx.sampleRate, a4);
     } catch (e) { $('msg').textContent = 'Error: ' + e.message; return; }
     if (r && r.level !== undefined) $('dLevel').textContent = r.level.toFixed(1);
+    var flat = true; for (var q = 0; q < buf.length; q += 64) if (buf[q] !== 0) { flat = false; break; }
+    if (flat) { $('msg').textContent = 'No audio from the mic yet (' + ctx.state + ', ' + ticks + ').'; return; }
     $('msg').textContent = r.quiet ? 'Level ' + r.level.toFixed(0) + ' dBFS. ' + r.why : 'Level ' + r.level.toFixed(0) + ' dBFS. Hearing ' + Math.round(r.f0) + ' Hz.';
     if (!r || r.quiet) {
       if (holdStart && now - lastGoodT > HOLD_GRACE_MS) resetNote();
@@ -351,16 +354,19 @@ th:first-child, td:first-child { text-align: left; }
   function start() {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { $('msg').textContent = 'This browser cannot reach the microphone. Open this page over https.'; return; }
     try { if (navigator.audioSession) navigator.audioSession.type = 'play-and-record'; } catch (e) {}
+    var AC = window.AudioContext || window.webkitAudioContext;
+    ctx = new AC();            // created inside the tap so iOS lets it run
+    try { ctx.resume(); } catch (e) {}
     navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } }).then(function (st) {
       stream = st;
-      var AC = window.AudioContext || window.webkitAudioContext;
-      ctx = new AC();
       var src = ctx.createMediaStreamSource(st);
       analyser = ctx.createAnalyser();
       analyser.fftSize = WINDOW;
       analyser.smoothingTimeConstant = 0;
       buf = new Float32Array(WINDOW);
       src.connect(analyser);
+      var mute = ctx.createGain(); mute.gain.value = 0;   // silent output keeps Safari pulling the mic
+      analyser.connect(mute); mute.connect(ctx.destination);
       ctx.resume();
       $('msg').textContent = 'Listening… (' + ctx.state + ')';
       try {
@@ -373,11 +379,11 @@ th:first-child, td:first-child { text-align: left; }
         n.hidden = !bad.length;
         n.textContent = bad.length ? 'This browser left ' + bad.join(' and ') + ' on. Readings may be off.' : '';
       } catch (e) {}
-      listening = true; resetNote();
+      listening = true; ticks = 0; resetNote();
       $('go').textContent = 'Stop listening'; $('go').setAttribute('aria-pressed', 'true');
       $('msg').textContent = 'Listening. Hold the note at least half a second.';
       timer = setInterval(tick, ANALYSIS_MS);
-    }).catch(function () { $('msg').textContent = 'Microphone not allowed. Allow it in the browser settings.'; });
+    }).catch(function (e) { if (ctx) { ctx.close(); ctx = null; } $('msg').textContent = 'Microphone problem: ' + (e && e.name ? e.name : e); });
   }
   function stop() {
     listening = false; clearInterval(timer);
