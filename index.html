@@ -168,6 +168,13 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); marg
 .rtrace small { font-size: 12px; color: var(--muted); }
 .hear { align-self: flex-start; min-height: 40px; padding: 0 14px; border: 1px solid var(--line); border-radius: 10px; background: transparent; color: var(--ink); font: 500 14px var(--font-body); cursor: pointer; }
 .hear[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+.jrow { display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; padding: 10px 0; border-top: 1px solid var(--line); }
+.jrow b { font: 500 22px var(--font-display); }
+.jrow b small { font: 400 13px var(--font-body); color: var(--muted); margin-left: 6px; }
+.jrow .jw { font-size: 14px; font-weight: 600; }
+.jrow .jt { font-size: 13px; color: var(--muted); grid-column: 1 / -1; }
+.jrow .jv { font: 500 18px var(--font-display); text-align: right; font-variant-numeric: tabular-nums; }
+.jrow .jv small { display: block; font: 400 12px var(--font-body); color: var(--muted); }
 .hear.sm { min-height: 36px; padding: 0 8px; }
 .rep .rv .hear { align-self: auto; }
 #modeSeg { flex-wrap: wrap; }
@@ -429,6 +436,8 @@ main { padding-bottom: 120px; }
         <button data-v="free" aria-pressed="false">Free</button>
         <button data-v="follow" aria-pressed="false">Follow</button>
         <button data-v="triad" aria-pressed="false">Triad</button>
+        <button data-v="build" aria-pressed="false">Build</button>
+        <button data-v="jobs" aria-pressed="false">Jobs</button>
         <button data-v="mine" aria-pressed="false">My notes</button>
         <button data-v="beats" aria-pressed="false">Beats</button>
       </div>
@@ -507,6 +516,33 @@ main { padding-bottom: 120px; }
       <div class="label">The note I am playing</div>
       <div class="degrees" id="tDegs" role="group" aria-label="Scale note"></div>
     </div>
+  </section>
+
+  <section class="card" id="buildCard" hidden>
+    <div class="guide-step">Build the chord</div>
+    <div class="dots" id="bldDots"></div>
+    <div class="guide-text" id="bldTitle">&nbsp;</div>
+    <p class="hint" id="bldText" style="font-size:15px;color:var(--ink)"></p>
+    <p class="hint" id="bldNames"></p>
+    <button class="go" id="bldPlay" aria-pressed="false">Play</button>
+    <button class="clear" id="bldPeek" aria-pressed="false" hidden>Hear the pure 3rd</button>
+    <div class="seg"><button id="bldBack">Back</button><button id="bldNext">Next</button></div>
+  </section>
+
+  <section class="card" id="jobsCard" hidden>
+    <div class="label">Each note has a job</div>
+    <div class="seg" id="jobProg" role="group" aria-label="Progression"></div>
+    <div class="seg" id="jobChips" role="group" aria-label="Chord"></div>
+    <div class="guide-text" id="jobTitle">&nbsp;</div>
+    <div id="jobRows"></div>
+    <p class="hint" id="jobCommon"></p>
+    <button class="go" id="jobPlay" aria-pressed="false">Play the drone</button>
+    <div class="seg" id="jobSound" role="group" aria-label="What the drone plays">
+      <button data-v="root" aria-pressed="true">Root only</button>
+      <button data-v="whole" aria-pressed="false">Whole chord</button>
+    </div>
+    <div class="seg"><button id="jobBack">Back</button><button id="jobNext">Next chord</button></div>
+    <button class="clear" id="jobSwap">Swap jobs</button>
   </section>
 
   <section class="card" id="tDroneCard" hidden>
@@ -602,7 +638,7 @@ main { padding-bottom: 120px; }
   </section>
   </div>
 
-  <p class="hint" id="buildTag" style="text-align:center;opacity:.6">Version: Nov 10d, Triad mode: record, hear yours then pure</p>
+  <p class="hint" id="buildTag" style="text-align:center;opacity:.6">Version: Nov 12a, Build the chord and Note's job</p>
   <p class="msg" id="msg">Tap Start, allow the microphone, then play one note at a time. The reading is in cents: 100 cents is one half step.</p>
 
   </div>
@@ -929,7 +965,7 @@ main { padding-bottom: 120px; }
     s.playing = on;
     clearTimeout(stopTimer);
     if (on) {
-      trStop(); hearStop();
+      trStop(); hearStop(); jobsOff();
       if (!ctx) build();
       ctx.resume().then(apply);
     } else if (ctx) {
@@ -1149,6 +1185,8 @@ main { padding-bottom: 120px; }
     free:   'Only the root plays. Play your scale in any order. It finds which note you are on and clicks up when you are within 5 cents of pure, and clicks down when you leave. Use headphones.',
   follow: 'Pick the key, then play your scale. The drone follows you: it plays the pure pitch of the note you are on, in that key. Use headphones.',
   triad:  'Play the root, the third and the fifth one at a time, holding each about 2 seconds. Then you hear your triad, then the pure one.',
+  build:  'Hear a chord grow: the root, then a pure 5th, then a pure 3rd. Play along and slide until each note locks in. No microphone needed.',
+  jobs:   'A chord progression where every player has a job: root, 5th or 3rd. The drone plays the roots. Each card shows how to tune your note. No microphone needed.',
   beats:  'Ear training. Tune one note against a steady one. The wobble slows as you get closer and disappears when it is in tune.',
     mine:   'Play a chromatic scale slowly. The chart saves which notes you tend to play sharp or flat on this instrument.'
   };
@@ -1749,17 +1787,19 @@ main { padding-bottom: 120px; }
     });
     Array.prototype.forEach.call($('tKey').children, function (o, i) { o.textContent = rootSpell(i, s.scale === 'minor'); });
     $('tOctVal').textContent = 'Octave ' + s.octave;
+    if (changed) { jobs.i = 0; jobsSet(); }
     if (changed && tMode === 'triad') triadStart();
     if (changed && guided()) guideStart(); else if (guided()) renderGuide(); else renderScaleRep();
     renderTend();
     trRender();
     if (tMode === 'free') freeTone();
     followSync();
+    buildRender(); jobsRender();
   }
 
   function tModeUI() {
     segEnd();
-    $('tOpts').hidden = !(tMode === 'target' || tMode === 'free' || tMode === 'follow' || tMode === 'triad' || guided() || tMode === 'beats');
+    $('tOpts').hidden = !(tMode === 'target' || tMode === 'free' || tMode === 'follow' || tMode === 'triad' || tMode === 'build' || tMode === 'jobs' || guided() || tMode === 'beats');
     $('tDegRow').hidden = tMode !== 'target';
     $('scaleCard').hidden = tMode !== 'scale';
     $('tendCard').hidden = tMode !== 'mine';
@@ -1767,8 +1807,14 @@ main { padding-bottom: 120px; }
     $('tOctRow').hidden = tMode === 'triad';
     $('tDroneCard').hidden = !(tMode === 'target' || tMode === 'scale');
     $('trCard').hidden = tMode !== 'beats';
-    $('meter').hidden = $('go').hidden = $('msg').hidden = tMode === 'beats';
-    if (tMode === 'beats') { if (listening) tStop(); } else trStop();
+    $('buildCard').hidden = tMode !== 'build';
+    $('jobsCard').hidden = tMode !== 'jobs';
+    var noMic = tMode === 'beats' || tMode === 'build' || tMode === 'jobs';
+    $('meter').hidden = $('go').hidden = $('msg').hidden = noMic;
+    if (noMic && listening) tStop();
+    if (tMode !== 'beats') trStop();
+    if (tMode === 'build') { if (!bld.was) { bld.was = true; bld.step = 0; bld.peek = false; buildSound(); render(); apply(); } } else buildLeave();
+    if (tMode !== 'jobs') jobsOff();
     if (tMode !== 'scale') hearStop();
     $('guideCard').hidden = !(guided() || tMode === 'triad');
     $('tDirRow').hidden = !guided();
@@ -2031,7 +2077,7 @@ main { padding-bottom: 120px; }
     return ctx.resume();
   }
   function audioDone() {
-    stopTimer = setTimeout(function () { if (!s.playing && !trOn && hearing < 0 && !cin.on && !climbV.length && ctx) ctx.suspend(); }, 500);
+    stopTimer = setTimeout(function () { if (!s.playing && !trOn && hearing < 0 && !cin.on && !climbV.length && !jobV.length && ctx) ctx.suspend(); }, 500);
   }
   function toneOnce(freq, t0, dur, amp) {
     var o = ctx.createOscillator(), f = ctx.createBiquadFilter(), g = ctx.createGain(), lv = Math.max(0.05, s.vol) * 0.3 * (amp || 1);
@@ -2114,6 +2160,150 @@ main { padding-bottom: 120px; }
     });
     hearCheck(100);
   }
+
+  // ---------- build the chord: the root, then the pure 5th, then the pure 3rd (uses the drone) ----------
+  var bld = { step: 0, peek: false, was: false };
+  var BSTEPS = [
+    ['1. The root', 'Everyone plays the root with the drone. Slide until you hear no wobble.'],
+    ['2. Lock the 5th', 'The drone plays the root and a pure 5th. Play the 5th and slide until the wobble stops. A pure 5th sits 2¢ above piano pitch.'],
+    ['3. Add the 3rd', ''],
+    ['4. Find the 3rd yourself', 'Only the root and 5th play. Find the 3rd, then tap Hear the pure 3rd to check yourself.']
+  ];
+  function buildSound() {
+    s.tuning = 'just';
+    s.sound = bld.step === 0 ? 'note' : bld.step === 1 ? 'fifth' : bld.step === 2 ? (s.scale === 'minor' ? 'minor' : 'major') : 'fifth';
+    s.probe = bld.step === 3 && bld.peek ? 2 : null;
+  }
+  function buildGo(n) { bld.step = rclamp(n, 0, 3); bld.peek = false; buildSound(); render(); apply(); }
+  function buildLeave() {
+    if (!bld.was) return;
+    bld.was = false;
+    if (s.playing) setPlaying(false);
+    s.sound = 'note'; s.probe = null;
+    render(); apply();
+  }
+  function buildRender() {
+    if (!$('buildCard')) return;
+    var minor = s.scale === 'minor', sh = instById[s.inst].shift, st = bld.step, k, dots = '';
+    for (k = 0; k < 4; k++) dots += '<i class="' + (k < st ? 'done' : k === st ? 'cur' : '') + '"></i>';
+    $('bldDots').innerHTML = dots;
+    $('bldTitle').textContent = BSTEPS[st][0];
+    $('bldText').textContent = st === 2
+      ? 'Listen to the chord. The pure ' + (minor ? 'minor 3rd sits 16¢ above' : 'major 3rd sits 14¢ below') + ' piano pitch. Now play along on the 3rd and slide until the chord rings.'
+      : BSTEPS[st][1];
+    var parts = [['Root', 0, 0], ['5th', 7, 4], ['3rd', minor ? 3 : 4, 2]].filter(function (x) { return st === 0 ? x[0] === 'Root' : st === 1 ? x[0] !== '3rd' : true; });
+    function names(shift) { return parts.map(function (x) { return x[0] + ' ' + spell(s.note, minor, shift, x[1], x[2]); }).join(' · '); }
+    $('bldNames').textContent = sh !== 0 ? 'You play: ' + names(sh) + '. Sounds: ' + names(0) + '.' : names(0);
+    $('bldPlay').textContent = s.playing ? 'Stop' : 'Play';
+    $('bldPlay').setAttribute('aria-pressed', s.playing ? 'true' : 'false');
+    $('bldPeek').hidden = st !== 3;
+    $('bldPeek').textContent = bld.peek ? 'Hide the 3rd' : 'Hear the pure 3rd';
+    $('bldPeek').setAttribute('aria-pressed', bld.peek ? 'true' : 'false');
+    $('bldBack').disabled = st === 0;
+    $('bldNext').textContent = st === 3 ? 'Start over' : 'Next';
+  }
+  $('bldPlay').addEventListener('click', function () { setPlaying(!s.playing); render(); });
+  $('bldPeek').addEventListener('click', function () { bld.peek = !bld.peek; buildSound(); render(); apply(); });
+  $('bldBack').addEventListener('click', function () { buildGo(bld.step - 1); });
+  $('bldNext').addEventListener('click', function () { buildGo(bld.step === 3 ? 0 : bld.step + 1); });
+
+  // ---------- each note's job: a progression with a role card for each player ----------
+  // [semitones above the key, letter steps, just ratio of the chord root, quality]
+  var CHORDS = {
+    major: { I: [0, 0, [1, 1], 'maj'], IV: [5, 3, [4, 3], 'maj'], V: [7, 4, [3, 2], 'maj'], vi: [9, 5, [5, 3], 'min'] },
+    minor: { i: [0, 0, [1, 1], 'min'], iv: [5, 3, [4, 3], 'min'], V: [7, 4, [3, 2], 'maj'], VI: [8, 5, [8, 5], 'maj'], III: [3, 2, [6, 5], 'maj'], VII: [10, 6, [9, 5], 'maj'] }
+  };
+  var PROGS = { major: [['I', 'IV', 'V', 'I'], ['I', 'vi', 'IV', 'V']], minor: [['i', 'iv', 'V', 'i'], ['i', 'VI', 'III', 'VII']] };
+  var ROLES = ['Root', '5th', '3rd'];
+  var jobs = { p: 0, i: 0, shift: 0, on: false, whole: false, pend: false }, jobV = [];
+  function jobChord(k) { var pr = PROGS[s.scale][jobs.p]; return { id: pr[k % pr.length], c: CHORDS[s.scale][pr[k % pr.length]] }; }
+  function jobTones(k) {
+    var c = jobChord(k).c, r = c[2][0] / c[2][1], maj = c[3] === 'maj';
+    var list = [['Root', c[0], c[1], r], ['5th', c[0] + 7, c[1] + 4, r * 1.5], ['3rd', c[0] + (maj ? 4 : 3), c[1] + 2, r * (maj ? 1.25 : 1.2)]];
+    return list.map(function (x) {
+      var cents = 1200 * Math.log(x[3]) / Math.LN2;
+      return { role: x[0], semi: x[1], step: x[2], ratio: x[3], off: cents - 100 * x[1], pcKey: Math.round((((cents % 1200) + 1200) % 1200) * 10) };
+    });
+  }
+  function jobName(x, shift) { return spell(s.note, s.scale === 'minor', shift, x.semi, x.step); }
+  function jobLv(x, n) {
+    var f = baseFreq() * x.ratio, boost = f < 150 ? 1 + (150 - f) / 100 : 1;
+    return Math.max(0.05, s.vol) * 0.28 * (n === 0 || jobs.whole ? 1 : 0) * Math.min(boost, 2);
+  }
+  function jobsSet() {
+    if (!jobs.on) return;
+    var tn = jobTones(jobs.i);
+    if (jobV.length) {
+      var t = ctx.currentTime;
+      jobV.forEach(function (v, n) {
+        v.g.gain.cancelScheduledValues(t); v.g.gain.setValueAtTime(v.g.gain.value, t);
+        v.g.gain.linearRampToValueAtTime(0, t + 0.03);
+        v.o.frequency.setValueAtTime(baseFreq() * tn[n].ratio, t + 0.03);
+        v.g.gain.linearRampToValueAtTime(jobLv(tn[n], n), t + 0.1);
+      });
+    } else if (!jobs.pend) {
+      jobs.pend = true;
+      audioReady().then(function () {
+        jobs.pend = false;
+        if (!jobs.on || jobV.length) return;
+        var t = ctx.currentTime, tn2 = jobTones(jobs.i);
+        tn2.forEach(function (x, n) {
+          var o = ctx.createOscillator(), fl = ctx.createBiquadFilter(), g = ctx.createGain();
+          o.type = 'sawtooth'; o.frequency.value = baseFreq() * x.ratio;
+          fl.type = 'lowpass'; fl.frequency.value = 2600;
+          g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(jobLv(x, n), t + 0.06);
+          o.connect(fl); fl.connect(g); g.connect(ctx.destination); o.start(t);
+          jobV.push({ o: o, g: g });
+        });
+      });
+    }
+  }
+  function jobsOff() {
+    var was = jobs.on;
+    jobs.on = false;
+    if (jobV.length && ctx) {
+      var t = ctx.currentTime;
+      jobV.forEach(function (v) { try { v.g.gain.cancelScheduledValues(t); v.g.gain.setTargetAtTime(0, t, 0.02); v.o.stop(t + 0.15); } catch (e) {} });
+    }
+    jobV = [];
+    if (was) { audioDone(); jobsRender(); }
+  }
+  function jobsRender() {
+    if (!$('jobsCard')) return;
+    var minor = s.scale === 'minor', sh = instById[s.inst].shift, progs = PROGS[s.scale], k, html = '';
+    if (jobs.p >= progs.length) jobs.p = 0;
+    var pr = progs[jobs.p], ch = jobChord(jobs.i), tn = jobTones(jobs.i), nxt = jobTones(jobs.i + 1), nch = jobChord(jobs.i + 1);
+    $('jobProg').innerHTML = progs.map(function (a, i) { return '<button data-p="' + i + '" aria-pressed="' + (i === jobs.p) + '">' + a.join(' – ') + '</button>'; }).join('');
+    $('jobChips').innerHTML = pr.map(function (id, i) { return '<button data-i="' + i + '" aria-pressed="' + (i === jobs.i) + '">' + id + '</button>'; }).join('');
+    var rootN = jobName(tn[0], 0), rootW = jobName(tn[0], sh);
+    $('jobTitle').textContent = 'Chord ' + (jobs.i + 1) + ' of ' + pr.length + ': ' + (sh !== 0 ? rootW + ' ' : rootN + ' ') + (ch.c[3] === 'maj' ? 'major' : 'minor') + (sh !== 0 ? ' (sounds ' + rootN + ')' : '');
+    for (k = 0; k < 3; k++) {
+      var x = tn[(k + jobs.shift) % 3], tip = x.role === 'Root' ? 'Match the drone.' : x.role === '5th' ? 'Lock it to the root until the wobble stops.' : (ch.c[3] === 'maj' ? 'Sit low. Slide down until the chord rings.' : 'Sit high. Slide up until the chord rings.');
+      html += '<div class="jrow"><div><b>' + jobName(x, sh) + (sh !== 0 ? '<small>sounds ' + jobName(x, 0) + '</small>' : '') + '</b><div class="jw">Player ' + (k + 1) + ' · ' + x.role + '</div></div>' +
+        '<div class="jv">' + fmtCents(x.off) + '<small>from piano</small></div><div class="jt">' + tip + '</div></div>';
+    }
+    $('jobRows').innerHTML = html;
+    var shared = null;
+    tn.forEach(function (a) { nxt.forEach(function (b) { if (!shared && Math.abs(a.pcKey - b.pcKey) < 2) shared = [a, b]; }); });
+    $('jobCommon').textContent = shared
+      ? 'Hold the ' + jobName(shared[0], sh) + ' across the change. It is the ' + shared[0].role + ' now, then the ' + shared[1].role + ' of the next chord (' + nch.id + '). The pitch stays, the job changes.'
+      : 'No note stays the same on the next chord (' + nch.id + '). Everyone moves.';
+    $('jobPlay').textContent = jobs.on ? 'Stop the drone' : 'Play the drone';
+    $('jobPlay').setAttribute('aria-pressed', jobs.on ? 'true' : 'false');
+    mark('jobSound', jobs.whole ? 'whole' : 'root');
+  }
+  function jobsGo(i) { var n = PROGS[s.scale][jobs.p].length; jobs.i = ((i % n) + n) % n; jobsSet(); jobsRender(); }
+  $('jobProg').addEventListener('click', function (e) { var b = e.target.closest('button'); if (b) { jobs.p = +b.dataset.p; jobs.i = 0; jobsSet(); jobsRender(); } });
+  $('jobChips').addEventListener('click', function (e) { var b = e.target.closest('button'); if (b) jobsGo(+b.dataset.i); });
+  $('jobBack').addEventListener('click', function () { jobsGo(jobs.i - 1); });
+  $('jobNext').addEventListener('click', function () { jobsGo(jobs.i + 1); });
+  $('jobSwap').addEventListener('click', function () { jobs.shift = (jobs.shift + 1) % 3; jobsRender(); });
+  $('jobSound').addEventListener('click', function (e) { var b = e.target.closest('button'); if (b) { jobs.whole = b.dataset.v === 'whole'; jobsSet(); jobsRender(); } });
+  $('jobPlay').addEventListener('click', function () {
+    if (jobs.on) { jobsOff(); return; }
+    if (s.playing) setPlaying(false);
+    jobs.on = true; jobsSet(); jobsRender();
+  });
 
   // ---------- beats trainer ----------
   var trOn = false, trOsc = [], trGain = null, trInt = 'unison', trTimer = null;
@@ -3027,7 +3217,7 @@ main { padding-bottom: 120px; }
     var b = e.target.closest('button');
     if (!b) return;
     if (b.dataset.v !== 'rhythm') { rStop(); sgStop(); }
-    if (b.dataset.v !== 'tuner') { trStop(); hearStop(); }
+    if (b.dataset.v !== 'tuner') { trStop(); hearStop(); jobsOff(); }
     if (listening && b.dataset.v !== 'tuner') tStop();
     s.tab = b.dataset.v; showTab(); save();
   });
