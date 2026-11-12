@@ -9,7 +9,7 @@ Live: https://adtromba.github.io/Orchestra-tuner/ (GitHub Pages from `main`). Gi
 - The owner tries each change on a real device and reacts. Ship small steps, say what changed in plain words, give the `?v=` link.
 - Sound cues must be very clear (on/off, in/out of tune). Low register (trumpet low notes) must work, not just high.
 
-## Navigation (Nov 12b)
+## Navigation (Nov 12c)
 App opens on **Home**: goal rows (Check a note, Practice a scale, Chords and intervals, Train my ear, Rhythm). Each tuner goal shows a picker `#modePick` (from `GOALS`); `#modeSeg` is kept hidden for state only. Top bar: Home button, title, Settings sheet (`#setSheet`: instrument, Orchestra A). Key bar on every page: Key and scale sheet (`#keySheet` = old drone panel + Major/Minor), Tune A, Start/Stop drone. Sing the scale is a tuner pseudo-mode `sing` under Train my ear. Tests navigate via `.goal[data-g=...]` and `#modePick`.
 
 ## Tabs and features
@@ -27,7 +27,7 @@ App opens on **Home**: goal rows (Check a note, Practice a scale, Chords and int
 - Audio: drone context `ctx` (`audioReady`, `audioDone` suspends when idle, `toneOnce`, `climbTone`, `ping`, `countIn`), rhythm context `rctx` (`rEnsure`, `rVoice`, phase-based scheduler with lookahead), tuner mic context `tctx` (YIN pitch detection in `tLoop`, median of 5).
 - Free/Follow/Triad/Build/Jobs: `freeFeed`, `followFeed`, `triadFeed`, `buildSound`, `jobsSet` and `jobsRender`.
 - Tuner guide: `guide`, `guideFeed`, `advance`, `finalizeRec`, `guideSilence` (Scale); `climb`, `climbFeed`, `climbSilence`, `zone()`, `zoneUI()` (Climb); `guided()` is true for both.
-- Version line: `<p class="hint" id="buildTag">` ("Version: Nov 12b, ..."), copied to `#buildTag2` on Rhythm. Bump the letter every release.
+- Version line: `<p class="hint" id="buildTag">` ("Version: Nov 12c, ..."), copied to `#buildTag2` on Rhythm. Bump the letter every release.
 
 ## Known limits and gotchas
 - iOS: audio session type is switched with `navigator.audioSession` (`audioMode()`); playback while mic is on needs `play-and-record`.

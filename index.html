@@ -17,6 +17,7 @@
   --line: #d3d9d5;
   --accent: #0f6b5c;
   --accent-ink: #ffffff;
+  --tint: #dcebe7;
   --good: #1f8a4c;
   --warn: #b45f06;
   --font-display: "IBM Plex Mono", ui-monospace, Menlo, monospace;
@@ -26,14 +27,14 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --bg: #0f1614; --surface: #17211e; --ink: #e6ede9; --muted: #8fa19a;
-    --line: #2b3a35; --accent: #4fc2a9; --accent-ink: #07211b;
+    --line: #2b3a35; --accent: #4fc2a9; --accent-ink: #07211b; --tint: #1d3a33;
     --good: #5bd48a; --warn: #f0a04b;
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
   --bg: #0f1614; --surface: #17211e; --ink: #e6ede9; --muted: #8fa19a;
-  --line: #2b3a35; --accent: #4fc2a9; --accent-ink: #07211b;
+  --line: #2b3a35; --accent: #4fc2a9; --accent-ink: #07211b; --tint: #1d3a33;
     --good: #5bd48a; --warn: #f0a04b;
   color-scheme: dark;
 }
@@ -285,27 +286,35 @@ svg .off { opacity: .3; }
 /* Floating drone bar, and the two-column tuner on wide screens (iPad) */
 main { padding-bottom: 120px; }
 .topbar { display: flex; align-items: center; gap: 8px; min-height: 48px; }
-.topbar h1 { flex: 1; font-size: 20px; letter-spacing: 0; text-transform: none; color: var(--ink); font-family: var(--font-display); font-weight: 500; text-align: center; }
-.topbar button { min-width: 48px; min-height: 48px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--ink); font: 600 15px var(--font-body); cursor: pointer; }
-.topbar button[hidden] { display: block !important; visibility: hidden; }
-.keybar { position: sticky; top: 0; z-index: 10; display: flex; gap: 8px; padding: 8px 0; background: var(--bg); }
-.keybar button { min-height: 52px; border-radius: 12px; font: 600 16px var(--font-body); cursor: pointer; }
-.kb-key { flex: 1; text-align: left; padding: 4px 12px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); line-height: 1.15; }
-.kb-key small { display: block; font-size: 12px; font-weight: 500; color: var(--muted); }
-.kb-tune { flex: none; padding: 0 12px; border: 1px solid var(--line); background: transparent; color: var(--ink); }
-.kb-drone { flex: none; min-width: 120px; border: 0; background: var(--accent); color: var(--accent-ink); }
-.kb-drone[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
-.goal { display: block; width: 100%; text-align: left; min-height: 72px; padding: 12px 16px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); color: var(--ink); cursor: pointer; font: 600 18px var(--font-body); }
-.goal span { display: block; margin-top: 2px; font-size: 14px; font-weight: 400; color: var(--muted); }
+.topbar h1 { flex: 1; min-width: 0; margin: 0; font: 600 20px/1.15 var(--font-body); letter-spacing: 0; text-transform: none; color: var(--ink); }
+.topbar.home h1 { font-size: 24px; }
+.ibtn { flex: none; width: 44px; height: 44px; padding: 0; display: flex; align-items: center; justify-content: center; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--ink); cursor: pointer; }
+.ibtn[hidden] { display: none !important; }
+.sub { margin: -8px 0 0; font-size: 14px; color: var(--muted); }
+.cap { margin: 4px 0 -4px; font: 600 12px var(--font-body); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.keybar { position: sticky; top: 0; z-index: 10; display: flex; gap: 8px; padding: 6px 0; background: var(--bg); }
+.kb-key { flex: 1; min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 52px; padding: 0 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--ink); cursor: pointer; text-align: left; font-family: var(--font-body); }
+.kb-key > span:first-child { display: flex; flex-direction: column; line-height: 1.15; }
+.kb-key small { font: 600 11px var(--font-body); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.kb-key b { font: 600 18px var(--font-body); }
+.kb-drone { flex: none; width: 132px; min-height: 52px; display: flex; align-items: center; justify-content: center; gap: 8px; border: 1px solid var(--accent); border-radius: 12px; background: var(--surface); color: var(--ink); font: 600 15px var(--font-body); cursor: pointer; }
+.kb-drone .kd { display: flex; flex-direction: column; line-height: 1.1; text-align: left; }
+.kb-drone .kd small { font: 400 12px var(--font-display); }
+.kb-drone[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.goal { display: flex; align-items: center; gap: 14px; width: 100%; text-align: left; min-height: 76px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); color: var(--ink); cursor: pointer; font-family: var(--font-body); }
+.goal .gi { flex: none; width: 46px; height: 46px; border-radius: 23px; background: var(--tint); color: var(--accent); display: flex; align-items: center; justify-content: center; }
+.goal .gt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; font: 600 17px var(--font-body); }
+.goal .gt small { font: 400 14px/1.35 var(--font-body); color: var(--muted); }
+.goal .gc { color: var(--muted); }
 .pick { display: flex; flex-direction: column; gap: 8px; }
-.pick button { text-align: left; min-height: 56px; padding: 8px 14px; border: 1px solid var(--line); border-radius: 12px; background: transparent; color: var(--ink); font: 600 16px var(--font-body); cursor: pointer; }
-.pick button span { display: block; font-size: 13px; font-weight: 400; color: var(--muted); }
-.pick button[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
-.pick button[aria-pressed="true"] span { color: var(--bg); opacity: .8; }
+.pick button { display: flex; flex-direction: column; gap: 2px; align-items: flex-start; text-align: left; min-height: 64px; padding: 10px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--ink); font: 600 16px var(--font-body); cursor: pointer; }
+.pick button span { font: 400 14px/1.35 var(--font-body); color: var(--muted); }
+.pick button[aria-pressed="true"] { border: 2px solid var(--accent); background: var(--tint); padding: 9px 13px; }
 .sheet { position: fixed; inset: 0; z-index: 40; background: rgba(0,0,0,.4); display: flex; align-items: flex-end; justify-content: center; }
 .sheet-in { background: var(--bg); width: min(560px, 100%); max-height: 90vh; overflow-y: auto; border-radius: 16px 16px 0 0; padding: 12px 12px 28px; display: flex; flex-direction: column; gap: 12px; }
 .sheet-h { display: flex; justify-content: space-between; align-items: center; font: 500 20px var(--font-display); }
-.sheet-h button { min-height: 44px; padding: 0 16px; border: 0; border-radius: 12px; background: var(--accent); color: var(--accent-ink); font: 600 16px var(--font-body); cursor: pointer; }
+.sheet-h { font: 600 20px var(--font-body); }
+.sheet-h button { min-height: 44px; padding: 0 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--ink); font: 600 16px var(--font-body); cursor: pointer; }
 
 .tcol { display: contents; }
 @media (min-width: 700px) {
@@ -321,24 +330,26 @@ main { padding-bottom: 120px; }
 </head>
 <body>
 <main>
-  <header class="topbar">
-    <button id="backBtn" hidden aria-label="Back to Home">&lsaquo; Home</button>
+  <header class="topbar home" id="topbar">
+    <button class="ibtn" id="backBtn" hidden aria-label="Back to Home"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
     <h1 id="pageTitle">Orchestra Tuner</h1>
-    <button id="setBtn" aria-label="Settings">Settings</button>
+    <button class="ibtn" id="setBtn" aria-label="Settings: instrument and tuning"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg></button>
   </header>
 
+  <p class="sub" id="homeSub"></p>
+
   <div class="keybar" id="keyBar">
-    <button class="kb-key" id="kbKey"><small>Key and scale</small><span id="kbKeyTxt">A major</span></button>
-    <button class="kb-tune" id="kbTune">Tune A</button>
-    <button class="kb-drone" id="kbDrone" aria-pressed="false">Start drone</button>
+    <button class="kb-key" id="kbKey" aria-label="Change key, scale and drone"><span><small>Key and scale</small><b id="kbKeyTxt">A major</b></span><span style="color:var(--muted)">&#9662;</span></button>
+    <button class="kb-drone" id="kbDrone" aria-pressed="false"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h3l2-5 3 10 3-8 2 3h5"/></svg><span class="kd"><span id="kbDroneTxt">Drone Off</span><small id="kbDroneNote">A4</small></span></button>
   </div>
 
   <div class="panel" id="panel-home">
-    <button class="goal" data-g="check">Check a note<span>See if a note is sharp or flat</span></button>
-    <button class="goal" data-g="practice">Practice a scale<span>Play over the drone and hear when you are in tune</span></button>
-    <button class="goal" data-g="chords">Chords and intervals<span>Lock in the 5th, then find the 3rd</span></button>
-    <button class="goal" data-g="ear">Train my ear<span>Beats, and singing the scale</span></button>
-    <button class="goal" data-g="rhythm">Rhythm<span>Metronome and polyrhythms</span></button>
+    <div class="cap">What do you want to do?</div>
+    <button class="goal" data-g="check"><span class="gi"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v10"/><path d="M5 20a9 9 0 0 1 14 0"/></svg></span><span class="gt">Check a note<small>Play a note. See how sharp or flat it is.</small></span><span class="gc"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></span></button>
+    <button class="goal" data-g="practice"><span class="gi"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 19h4v-4h4v-4h4V7h6"/></svg></span><span class="gt">Practice a scale<small>Play over a drone and hear when you are in tune.</small></span><span class="gc"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></span></button>
+    <button class="goal" data-g="chords"><span class="gi"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg></span><span class="gt">Chords and intervals<small>Lock in the 5th, then find the 3rd.</small></span><span class="gc"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></span></button>
+    <button class="goal" data-g="ear"><span class="gi"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 9a5 5 0 1 1 9 3c-1 1.5-2 2-2 4a3 3 0 0 1-5 2"/><path d="M10 9a2 2 0 0 1 4 0"/></svg></span><span class="gt">Train my ear<small>Beat trainer and sing the scale.</small></span><span class="gc"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></span></button>
+    <button class="goal" data-g="rhythm"><span class="gi"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 21h8l-2-16h-4z"/><path d="M12 17l4-8"/></svg></span><span class="gt">Rhythm<small>Metronome and polyrhythms.</small></span><span class="gc"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></span></button>
     <p class="hint" id="buildTag3" style="text-align:center;opacity:.6"></p>
   </div>
 
@@ -740,7 +751,7 @@ main { padding-bottom: 120px; }
   </section>
   </div>
 
-  <p class="hint" id="buildTag" style="text-align:center;opacity:.6">Version: Nov 12b, Home screen, goals, key bar</p>
+  <p class="hint" id="buildTag" style="text-align:center;opacity:.6">Version: Nov 12c, look matches the mockup</p>
   <p class="msg" id="msg">Tap Start, allow the microphone, then play one note at a time. The reading is in cents: 100 cents is one half step.</p>
 
   </div>
@@ -1076,7 +1087,9 @@ main { padding-bottom: 120px; }
     $('tDroneBtn').textContent = s.playing ? 'Stop drone' : 'Start drone';
     $('kbKeyTxt').textContent = rootSpell(s.note, s.scale === 'minor') + ' ' + s.scale;
     $('kbDrone').setAttribute('aria-pressed', s.playing ? 'true' : 'false');
-    $('kbDrone').textContent = s.playing ? 'Stop drone' : 'Start drone';
+    $('kbDroneTxt').textContent = s.playing ? 'Drone On' : 'Drone Off';
+    $('kbDroneNote').textContent = $('noteName').textContent;
+    $('homeSub').textContent = instById[s.inst].name + ' \u00b7 A ' + s.a4;
     mark('ksScale', s.scale);
     $('tPhones').hidden = !s.playing;
     $('tVol').value = Math.round(s.vol * 100);
@@ -3282,6 +3295,8 @@ main { padding-bottom: 120px; }
     $('panel-tuner').hidden = s.tab !== 'tuner';
     $('panel-rhythm').hidden = s.tab !== 'rhythm';
     $('backBtn').hidden = s.tab === 'home';
+    $('topbar').classList.toggle('home', s.tab === 'home');
+    $('homeSub').hidden = s.tab !== 'home';
     $('pageTitle').textContent = s.tab === 'tuner' ? GOALS[goal].t : s.tab === 'rhythm' ? 'Rhythm' : 'Orchestra Tuner';
     $('buildTag3').textContent = $('buildTag').textContent;
   }
@@ -3299,7 +3314,6 @@ main { padding-bottom: 120px; }
   $('kbKey').addEventListener('click', function () { openSheet('keySheet'); });
   $('setBtn').addEventListener('click', function () { openSheet('setSheet'); });
   $('kbDrone').addEventListener('click', function () { setPlaying(!s.playing); render(); });
-  $('kbTune').addEventListener('click', function () { $('tuneA').click(); });
   $('backBtn').addEventListener('click', function () {
     leavePage(); s.tab = 'home'; showTab(); window.scrollTo(0, 0);
   });

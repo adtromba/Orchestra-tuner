@@ -10,7 +10,7 @@ with sync_playwright() as p:
     for (w,h,tag) in ((1180,820,'land'),(820,1180,'port'),(390,844,'phone')):
         pg=b.new_page(viewport={'width':w,'height':h}); pg.on('pageerror',lambda e:errs.append(str(e)))
         pg.goto('file://'+INDEX+'')
-        print(tag,'goals:',pg.eval_on_selector_all('.goal','els=>els.filter(e=>e.offsetParent).map(e=>e.firstChild.textContent)'))
+        print(tag,'goals:',pg.eval_on_selector_all('.goal','els=>els.filter(e=>e.offsetParent).map(e=>e.querySelector(".gt").firstChild.textContent)'))
         pg.click('.goal[data-g=practice]'); pg.click('#modePick button[data-v=scale]')
         pg.evaluate("window.scrollTo(0,0)")
         # give the report something to show
