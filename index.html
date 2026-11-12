@@ -486,7 +486,6 @@ main { padding-bottom: 120px; }
       <div class="pick" id="modePick"></div>
       <div class="seg" id="modeSeg" hidden role="group" aria-label="Tuner mode">
         <button data-v="notes" aria-pressed="true">Notes</button>
-        <button data-v="target" aria-pressed="false">Target</button>
         <button data-v="scale" aria-pressed="false">Scale</button>
         <button data-v="climb" aria-pressed="false">Climb</button>
         <button data-v="free" aria-pressed="false">Free</button>
@@ -495,7 +494,6 @@ main { padding-bottom: 120px; }
         <button data-v="build" aria-pressed="false">Build</button>
         <button data-v="jobs" aria-pressed="false">Jobs</button>
         <button data-v="mine" aria-pressed="false">My notes</button>
-        <button data-v="beats" aria-pressed="false">Beats</button>
       </div>
       <p class="hint" id="modeHint"></p>
     </div>
@@ -558,39 +556,6 @@ main { padding-bottom: 120px; }
     </details>
   </section>
 
-  <section class="card" id="trCard" hidden>
-    <div class="row">
-      <div class="label">Tune against</div>
-      <div class="seg" id="trIntSeg" role="group" aria-label="Interval">
-        <button data-v="unison" aria-pressed="true">Unison</button>
-        <button data-v="octave" aria-pressed="false">Octave</button>
-        <button data-v="fifth" aria-pressed="false">Fifth</button>
-        <button data-v="third" aria-pressed="false">Third</button>
-      </div>
-    </div>
-    <button class="go" id="trPlay" aria-pressed="false">Play</button>
-    <div class="row">
-      <label class="label" for="trBend">Bend the upper note</label>
-      <input type="range" id="trBend" min="-60" max="60" step="0.5" value="20">
-      <div class="seg" id="trNudge" role="group" aria-label="Nudge pitch">
-        <button data-n="-5">&minus;5&cent;</button>
-        <button data-n="-1">&minus;1&cent;</button>
-        <button data-n="1">+1&cent;</button>
-        <button data-n="5">+5&cent;</button>
-      </div>
-    </div>
-    <div class="beat" id="trBeat">
-      <span class="dot" id="trDot"></span>
-      <div><strong id="trBeatMain"></strong><small id="trBeatSub"></small></div>
-    </div>
-    <div class="seg">
-      <button id="trHide" aria-pressed="false">Hide numbers</button>
-      <button id="trCheck">Check</button>
-      <button id="trNew">New note</button>
-    </div>
-    <p class="hint" id="trMsg">Press Play. Slide until the wobble slows down and disappears. Headphones help.</p>
-  </section>
-
   <section class="card" id="tOpts" hidden>
     <div class="row" hidden>
       <label class="label" for="tKey">Key (root note)</label>
@@ -625,10 +590,7 @@ main { padding-bottom: 120px; }
         <button data-v="off" aria-pressed="false">Off</button>
       </div>
     </div>
-    <div class="row" id="tDegRow">
-      <div class="label">The note I am playing</div>
-      <div class="degrees" id="tDegs" role="group" aria-label="Scale note"></div>
-    </div>
+
   </section>
 
   <section class="card" id="buildCard" hidden>
@@ -751,7 +713,7 @@ main { padding-bottom: 120px; }
   </section>
   </div>
 
-  <p class="hint" id="buildTag" style="text-align:center;opacity:.6">Version: Nov 12c, look matches the mockup</p>
+  <p class="hint" id="buildTag" style="text-align:center;opacity:.6">Version: Nov 12d, Target and Beat trainer removed</p>
   <p class="msg" id="msg">Tap Start, allow the microphone, then play one note at a time. The reading is in cents: 100 cents is one half step.</p>
 
   </div>
@@ -1015,7 +977,7 @@ main { padding-bottom: 120px; }
     s.playing = on;
     clearTimeout(stopTimer);
     if (on) {
-      trStop(); hearStop(); jobsOff();
+      hearStop(); jobsOff();
       if (!ctx) build();
       ctx.resume().then(apply);
     } else if (ctx) {
@@ -1229,11 +1191,10 @@ main { padding-bottom: 120px; }
   }
 
   // ---------- modes: notes, target, scale, my notes ----------
-  var tMode = 'notes', tDeg = 0, seg = null, scaleRep = {}, dropped = {}, repKey = '', tend = {}, tendInst = '';
+  var tMode = 'notes', seg = null, scaleRep = {}, dropped = {}, repKey = '', tend = {}, tendInst = '';
   var GOALS = {
     check: { t: 'Check a note', def: 'notes', modes: [
       ['notes', 'Notes', 'Nearest note and cents'],
-      ['target', 'Target', 'Tune a scale note to its pure pitch'],
       ['mine', 'My tendencies', 'Which notes you play sharp or flat']] },
     practice: { t: 'Practice a scale', def: 'follow', modes: [
       ['follow', 'Follow', 'The drone follows the note you play'],
@@ -1244,8 +1205,7 @@ main { padding-bottom: 120px; }
       ['build', 'Build the chord', 'Hear root, 5th and 3rd lock in'],
       ['jobs', "Each note's job", 'Root, 5th or 3rd through a progression'],
       ['triad', 'Record a triad', 'Hear yours, then the pure one']] },
-    ear: { t: 'Train my ear', def: 'beats', modes: [
-      ['beats', 'Beat trainer', 'Slide until the wobble disappears'],
+    ear: { t: 'Train my ear', def: 'sing', modes: [
       ['sing', 'Sing the scale', 'A slow scale over a soft root']] }
   };
   var goal = 'check', lastMode = {};
@@ -1259,7 +1219,6 @@ main { padding-bottom: 120px; }
   var HINTS = {
     sing:   'A soft root plays underneath. Sing or play each note as it comes. Each note lasts a few seconds so you have time to match it.',
     notes:  'Shows the nearest note and how many cents sharp or flat you are against piano pitch.',
-    target: 'Pick the note you are playing. The meter shows how far you are from its pure (just) pitch over the key.',
     scale:  'Play one note at a time and hold each for at least 2 seconds in total. Breaths and restarts are fine. It moves on when you play the next note.',
     climb:  'The scale plays the root and the next note. Land within 5 cents and you hear a ping. Hold it there for 3.5 seconds and it moves up. Use headphones so the mic only hears you.',
     free:   'Only the root plays. Play your scale in any order. It finds which note you are on and clicks up when you are within 5 cents of pure, and clicks down when you leave. Use headphones.',
@@ -1267,7 +1226,6 @@ main { padding-bottom: 120px; }
   triad:  'Play the root, the third and the fifth one at a time, holding each about 2 seconds. Then you hear your triad, then the pure one.',
   build:  'Hear a chord grow: the root, then a pure 5th, then a pure 3rd. Play along and slide until each note locks in. No microphone needed.',
   jobs:   'A chord progression where every player has a job: root, 5th or 3rd. The drone plays the roots. Each card shows how to tune your note. No microphone needed.',
-  beats:  'Ear training. Tune one note against a steady one. The wobble slows as you get closer and disappears when it is in tune.',
     mine:   'Play a chromatic scale slowly. The chart saves which notes you tend to play sharp or flat on this instrument.'
   };
 
@@ -1859,19 +1817,12 @@ main { padding-bottom: 120px; }
     var changed = key !== repKey;
     if (changed) { repKey = key; scaleRep = {}; dropped = {}; }
     if (tendInst !== s.inst) { tendInst = s.inst; loadTend(); }
-    Array.prototype.forEach.call($('tDegs').children, function (b, i) {
-      var d = scaleDegs()[i];
-      b.children[0].textContent = spell(s.note, s.scale === 'minor', shift, d[0], i);
-      b.children[1].textContent = DEG[i];
-      b.setAttribute('aria-pressed', i === tDeg ? 'true' : 'false');
-    });
     Array.prototype.forEach.call($('tKey').children, function (o, i) { o.textContent = rootSpell(i, s.scale === 'minor'); });
     $('tOctVal').textContent = 'Octave ' + s.octave;
     if (changed) { jobs.i = 0; jobsSet(); }
     if (changed && tMode === 'triad') triadStart();
     if (changed && guided()) guideStart(); else if (guided()) renderGuide(); else renderScaleRep();
     renderTend();
-    trRender();
     if (tMode === 'free') freeTone();
     followSync();
     buildRender(); jobsRender();
@@ -1879,22 +1830,19 @@ main { padding-bottom: 120px; }
 
   function tModeUI() {
     segEnd();
-    $('tOpts').hidden = !(tMode === 'target' || tMode === 'free' || guided());
-    $('tDegRow').hidden = tMode !== 'target';
+    $('tOpts').hidden = !(tMode === 'free' || guided());
     $('scaleCard').hidden = tMode !== 'scale';
     $('tendCard').hidden = tMode !== 'mine';
     $('triadCard').hidden = tMode !== 'triad';
-    $('tDroneCard').hidden = !(tMode === 'target' || tMode === 'scale');
-    $('trCard').hidden = tMode !== 'beats';
+    $('tDroneCard').hidden = tMode !== 'scale';
     $('buildCard').hidden = tMode !== 'build';
     $('jobsCard').hidden = tMode !== 'jobs';
     $('sgCard').hidden = tMode !== 'sing';
     if (tMode === 'sing' && lastTM !== 'sing' && typeof sg === 'object') { sg.note = s.note; sg.scale = s.scale; sgUI(); }
     if (tMode !== 'sing' && typeof sg === 'object' && sg.running) sgStop();
-    var noMic = tMode === 'beats' || tMode === 'build' || tMode === 'jobs' || tMode === 'sing';
+    var noMic = tMode === 'build' || tMode === 'jobs' || tMode === 'sing';
     $('meter').hidden = $('go').hidden = $('msg').hidden = noMic;
     if (noMic && listening) tStop();
-    if (tMode !== 'beats') trStop();
     if (tMode === 'build') { if (!bld.was) { bld.was = true; bld.step = 0; bld.peek = false; buildSound(); render(); apply(); } } else buildLeave();
     if (tMode !== 'jobs') jobsOff();
     if (tMode !== 'scale') hearStop();
@@ -1959,10 +1907,10 @@ main { padding-bottom: 120px; }
 
   function tShow(f) {
     var shift = instById[s.inst].shift, big, line1, tgt, cents, note = '', beat = '';
-    if (tMode === 'target' || tMode === 'free' || tMode === 'follow' || tMode === 'triad' || guided()) {
+    if (tMode === 'free' || tMode === 'follow' || tMode === 'triad' || guided()) {
       var root = baseFreq(), l = 1200 * Math.log(f / root) / Math.LN2, pcC = mod1200(l);
       var degs = scaleDegs(), gst = guided() ? guideStep() : null;
-      var deg = tMode === 'target' ? tDeg : (gst ? gst.deg : nearestDeg(pcC)), d = degs[deg];
+      var deg = gst ? gst.deg : nearestDeg(pcC), d = degs[deg];
       var tc = justCents(d);
       cents = dd(pcC, tc);
       tgt = root * Math.pow(2, (tc + 1200 * Math.round((l - tc) / 1200)) / 1200);
@@ -2119,12 +2067,6 @@ main { padding-bottom: 120px; }
     o.value = String(i); o.textContent = n;
     $('tKey').appendChild(o);
   });
-  for (var di = 0; di < 7; di++) (function (i) {
-    var b = document.createElement('button');
-    b.innerHTML = '<b></b><small></small>';
-    b.addEventListener('click', function () { tDeg = i; tRenderOpts(); });
-    $('tDegs').appendChild(b);
-  })(di);
   $('tKey').addEventListener('change', function (e) { s.note = +e.target.value; render(); apply(); });
   $('tScaleSeg').addEventListener('click', function (e) {
     var b = e.target.closest('button');
@@ -2164,7 +2106,7 @@ main { padding-bottom: 120px; }
     return ctx.resume();
   }
   function audioDone() {
-    stopTimer = setTimeout(function () { if (!s.playing && !trOn && hearing < 0 && !cin.on && !climbV.length && !jobV.length && ctx) ctx.suspend(); }, 500);
+    stopTimer = setTimeout(function () { if (!s.playing && hearing < 0 && !cin.on && !climbV.length && !jobV.length && ctx) ctx.suspend(); }, 500);
   }
   function toneOnce(freq, t0, dur, amp) {
     var o = ctx.createOscillator(), f = ctx.createBiquadFilter(), g = ctx.createGain(), lv = Math.max(0.05, s.vol) * 0.3 * (amp || 1);
@@ -2392,107 +2334,6 @@ main { padding-bottom: 120px; }
     jobs.on = true; jobsSet(); jobsRender();
   });
 
-  // ---------- beats trainer ----------
-  var trOn = false, trOsc = [], trGain = null, trInt = 'unison', trTimer = null;
-  function trRatio() {
-    if (trInt === 'octave') return [2, 1];
-    if (trInt === 'fifth') return [3, 2];
-    if (trInt === 'third') return s.scale === 'minor' ? [6, 5] : [5, 4];
-    return [1, 1];
-  }
-  function trRoot() { var f = baseFreq(); while (f < 130) f *= 2; return f; }
-  function trFreqs() {
-    var r = trRatio(), bend = +$('trBend').value, root = trRoot(), pure = root * r[0] / r[1];
-    return { root: root, pure: pure, up: pure * Math.pow(2, bend / 1200), bend: bend, den: r[1] };
-  }
-  function trRender() {
-    if (!$('trBend')) return;
-    var q = trFreqs(), beats = q.den * Math.abs(q.up - q.pure), hide = $('trHide').getAttribute('aria-pressed') === 'true';
-    var r = trRatio();
-    $('trIntSeg').children[3].textContent = 'Third';
-    $('trBeat').hidden = hide;
-    var main, dot = $('trDot');
-    if (beats < 0.15) { main = 'No wobble. Pure.'; dot.classList.remove('beating'); }
-    else if (beats > 8) { main = 'Wobble too fast to count'; dot.classList.add('beating'); dot.style.setProperty('--dur', '0.125s'); }
-    else {
-      main = 'Wobble: about ' + (beats < 1 ? beats.toFixed(1) : Math.round(beats * 2) / 2) + ' per second';
-      dot.classList.add('beating'); dot.style.setProperty('--dur', (1 / beats).toFixed(2) + 's');
-    }
-    $('trBeatMain').textContent = main;
-    $('trBeatSub').textContent = Math.abs(q.bend) < 0.5 ? 'Upper note is on the pure pitch' : 'Upper note is ' + Math.abs(q.bend).toFixed(1).replace(/\.0$/, '') + '¢ ' + (q.bend > 0 ? 'sharp' : 'flat') + ' of pure';
-    if (trOn && trOsc.length === 2) {
-      var t = ctx.currentTime;
-      trOsc[0].frequency.setTargetAtTime(q.root, t, 0.02);
-      trOsc[1].frequency.setTargetAtTime(q.up, t, 0.02);
-    }
-    mark('trIntSeg', trInt);
-    $('trPlay').setAttribute('aria-pressed', trOn ? 'true' : 'false');
-    $('trPlay').textContent = trOn ? 'Stop' : 'Play';
-  }
-  function trStart() {
-    hearStop();
-    if (listening) tStop();
-    audioReady().then(function () {
-      if (trOn) return;
-      var q = trFreqs(), t = ctx.currentTime;
-      trGain = ctx.createGain();
-      trGain.gain.setValueAtTime(0, t);
-      trGain.gain.linearRampToValueAtTime(Math.max(0.05, s.vol) * 0.4, t + 0.1);
-      trGain.connect(ctx.destination);
-      trOsc = [q.root, q.up].map(function (f) {
-        var o = ctx.createOscillator(), lp = ctx.createBiquadFilter(), g = ctx.createGain();
-        o.type = 'sawtooth'; o.frequency.value = f;
-        lp.type = 'lowpass'; lp.frequency.value = 2600;
-        g.gain.value = 0.5;
-        o.connect(lp); lp.connect(g); g.connect(trGain);
-        o.start();
-        return o;
-      });
-      trOn = true;
-      trRender();
-    });
-  }
-  function trStop() {
-    if (!trOn) return;
-    trOn = false;
-    var oscs = trOsc, g = trGain;
-    trOsc = []; trGain = null;
-    try { g.gain.cancelScheduledValues(ctx.currentTime); g.gain.setTargetAtTime(0, ctx.currentTime, 0.03); } catch (e) {}
-    clearTimeout(trTimer);
-    trTimer = setTimeout(function () { oscs.forEach(function (o) { try { o.stop(); } catch (e) {} }); audioDone(); }, 200);
-    trRender();
-  }
-  function trNew() {
-    var m = 12 + Math.random() * 23;
-    $('trBend').value = (Math.random() < 0.5 ? -1 : 1) * Math.round(m * 2) / 2;
-    $('trMsg').textContent = 'Slide until the wobble slows down and disappears.';
-    trRender();
-  }
-  $('trIntSeg').addEventListener('click', function (e) {
-    var b = e.target.closest('button');
-    if (b) { trInt = b.dataset.v; trRender(); }
-  });
-  $('trPlay').addEventListener('click', function () { if (trOn) trStop(); else trStart(); });
-  $('trBend').addEventListener('input', trRender);
-  $('trNudge').addEventListener('click', function (e) {
-    var b = e.target.closest('button');
-    if (!b) return;
-    var v = Math.max(-60, Math.min(60, +$('trBend').value + +b.dataset.n));
-    $('trBend').value = v; trRender();
-  });
-  $('trHide').addEventListener('click', function () {
-    var on = $('trHide').getAttribute('aria-pressed') !== 'true';
-    $('trHide').setAttribute('aria-pressed', on ? 'true' : 'false');
-    $('trHide').textContent = on ? 'Show numbers' : 'Hide numbers';
-    $('trMsg').textContent = on ? 'Test yourself: use only your ears. Tap Check when the wobble is gone.' : 'Slide until the wobble slows down and disappears.';
-    trRender();
-  });
-  $('trCheck').addEventListener('click', function () {
-    var b = +$('trBend').value, a = Math.abs(b).toFixed(1).replace(/\.0$/, '');
-    if (Math.abs(b) <= 3) $('trMsg').textContent = 'Locked in: only ' + a + '¢ from pure. Tap New note to try another.';
-    else $('trMsg').textContent = 'Not yet: ' + a + '¢ ' + (b > 0 ? 'sharp' : 'flat') + '. Move the slider ' + (b > 0 ? 'down' : 'up') + ' and listen for the wobble to slow.';
-  });
-  $('trNew').addEventListener('click', trNew);
 
   $('triHear').addEventListener('click', function () {
     if (tri.hear) { hearStop(); return; }
@@ -3301,7 +3142,7 @@ main { padding-bottom: 120px; }
     $('buildTag3').textContent = $('buildTag').textContent;
   }
   function leavePage() {
-    rStop(); sgStop(); trStop(); hearStop(); jobsOff(); buildLeave();
+    rStop(); sgStop(); hearStop(); jobsOff(); buildLeave();
     if (listening) tStop();
   }
   function openSheet(id) { $(id).hidden = false; }

@@ -9,12 +9,12 @@ Live: https://adtromba.github.io/Orchestra-tuner/ (GitHub Pages from `main`). Gi
 - The owner tries each change on a real device and reacts. Ship small steps, say what changed in plain words, give the `?v=` link.
 - Sound cues must be very clear (on/off, in/out of tune). Low register (trumpet low notes) must work, not just high.
 
-## Navigation (Nov 12c)
+## Navigation (Nov 12d)
 App opens on **Home**: goal rows (Check a note, Practice a scale, Chords and intervals, Train my ear, Rhythm). Each tuner goal shows a picker `#modePick` (from `GOALS`); `#modeSeg` is kept hidden for state only. Top bar: Home button, title, Settings sheet (`#setSheet`: instrument, Orchestra A). Key bar on every page: Key and scale sheet (`#keySheet` = old drone panel + Major/Minor), Tune A, Start/Stop drone. Sing the scale is a tuner pseudo-mode `sing` under Train my ear. Tests navigate via `.goal[data-g=...]` and `#modePick`.
 
 ## Tabs and features
 - **Drone**: root note drone, tune A (415/440/442/443), waveforms, floating drone bar (start/stop, note, Tune A) shown on every tab except Rhythm.
-- **Tuner** modes (`#modeSeg`): Notes, Target, **Scale** (record each degree, report with Hear it and pitch traces; needs 2 s played per note), **Climb**, My notes (chromatic tendencies per instrument), Beats (ear training).
+- **Tuner** modes (`#modeSeg`): Notes, **Scale** (record each degree, report with Hear it and pitch traces; needs 2 s played per note), **Climb**, My notes (chromatic tendencies per instrument). Target and Beat trainer were removed in 12d.
   - **Climb**: plays root drone plus the current note (in the chosen Starting octave); you must stay within 5 cents of pure (just) pitch for a total of 3.5 s to move up. 4-beat count-in first. Green IN TUNE / gray OFF banner, rising two-note sound when you land in tune, falling two-note sound when you leave (0.15 s grace), three-note run when a note is done. Hold resets after 0.35 s out. Needs headphones (mic would hear the app).
   - **Free**: only the root plays; the mic names the nearest scale note and clicks in/out within 5 cents of pure. **Follow**: the drone moves to the pure pitch of the scale note you play. **Triad**: play root, 3rd, 5th one at a time, then hear yours and the pure triad. In and out clicks can be turned off (Climb, Free).
   - **Build** (no mic): the drone grows root, then pure 5th, then pure 3rd; step 4 plays root+5th and you find the 3rd, with a peek button. Uses the normal drone engine (`s.sound`, `s.probe`). **Jobs** (no mic): progressions (I IV V I, I vi IV V; minor ones too) with a role card per player (root, 5th, 3rd), cents from piano pitch, common-tone hint, Swap jobs; own oscillators (`jobV`).
@@ -27,7 +27,7 @@ App opens on **Home**: goal rows (Check a note, Practice a scale, Chords and int
 - Audio: drone context `ctx` (`audioReady`, `audioDone` suspends when idle, `toneOnce`, `climbTone`, `ping`, `countIn`), rhythm context `rctx` (`rEnsure`, `rVoice`, phase-based scheduler with lookahead), tuner mic context `tctx` (YIN pitch detection in `tLoop`, median of 5).
 - Free/Follow/Triad/Build/Jobs: `freeFeed`, `followFeed`, `triadFeed`, `buildSound`, `jobsSet` and `jobsRender`.
 - Tuner guide: `guide`, `guideFeed`, `advance`, `finalizeRec`, `guideSilence` (Scale); `climb`, `climbFeed`, `climbSilence`, `zone()`, `zoneUI()` (Climb); `guided()` is true for both.
-- Version line: `<p class="hint" id="buildTag">` ("Version: Nov 12c, ..."), copied to `#buildTag2` on Rhythm. Bump the letter every release.
+- Version line: `<p class="hint" id="buildTag">` ("Version: Nov 12d, ..."), copied to `#buildTag2` on Rhythm. Bump the letter every release.
 
 ## Known limits and gotchas
 - iOS: audio session type is switched with `navigator.audioSession` (`audioMode()`); playback while mic is on needs `play-and-record`.
