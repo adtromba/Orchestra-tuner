@@ -283,20 +283,34 @@ svg .off { opacity: .3; }
 #sgPlay { width: 100%; flex: none; }
 
 /* Floating drone bar, and the two-column tuner on wide screens (iPad) */
-.ddock { position: fixed; left: 50%; transform: translateX(-50%); bottom: 12px; z-index: 20; width: min(560px, calc(100% - 24px)); display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 6px 24px rgba(0,0,0,.22); }
-.dd-name { flex: none; min-width: 84px; line-height: 1.1; }
-.dd-name span { display: block; font: 500 30px var(--font-display); }
-.dd-name span sub { font-size: 14px; }
-.dd-name small { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
-.ddock button { min-height: 52px; border-radius: 12px; font: 600 16px var(--font-body); cursor: pointer; }
-.dd-tune { flex: none; padding: 0 14px; border: 1px solid var(--line); background: transparent; color: var(--ink); }
-.dd-play { flex: 1; border: 0; background: var(--accent); color: var(--accent-ink); }
-.dd-play[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
 main { padding-bottom: 120px; }
+.topbar { display: flex; align-items: center; gap: 8px; min-height: 48px; }
+.topbar h1 { flex: 1; font-size: 20px; letter-spacing: 0; text-transform: none; color: var(--ink); font-family: var(--font-display); font-weight: 500; text-align: center; }
+.topbar button { min-width: 48px; min-height: 48px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--ink); font: 600 15px var(--font-body); cursor: pointer; }
+.topbar button[hidden] { display: block !important; visibility: hidden; }
+.keybar { position: sticky; top: 0; z-index: 10; display: flex; gap: 8px; padding: 8px 0; background: var(--bg); }
+.keybar button { min-height: 52px; border-radius: 12px; font: 600 16px var(--font-body); cursor: pointer; }
+.kb-key { flex: 1; text-align: left; padding: 4px 12px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); line-height: 1.15; }
+.kb-key small { display: block; font-size: 12px; font-weight: 500; color: var(--muted); }
+.kb-tune { flex: none; padding: 0 12px; border: 1px solid var(--line); background: transparent; color: var(--ink); }
+.kb-drone { flex: none; min-width: 120px; border: 0; background: var(--accent); color: var(--accent-ink); }
+.kb-drone[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+.goal { display: block; width: 100%; text-align: left; min-height: 72px; padding: 12px 16px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); color: var(--ink); cursor: pointer; font: 600 18px var(--font-body); }
+.goal span { display: block; margin-top: 2px; font-size: 14px; font-weight: 400; color: var(--muted); }
+.pick { display: flex; flex-direction: column; gap: 8px; }
+.pick button { text-align: left; min-height: 56px; padding: 8px 14px; border: 1px solid var(--line); border-radius: 12px; background: transparent; color: var(--ink); font: 600 16px var(--font-body); cursor: pointer; }
+.pick button span { display: block; font-size: 13px; font-weight: 400; color: var(--muted); }
+.pick button[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.pick button[aria-pressed="true"] span { color: var(--bg); opacity: .8; }
+.sheet { position: fixed; inset: 0; z-index: 40; background: rgba(0,0,0,.4); display: flex; align-items: flex-end; justify-content: center; }
+.sheet-in { background: var(--bg); width: min(560px, 100%); max-height: 90vh; overflow-y: auto; border-radius: 16px 16px 0 0; padding: 12px 12px 28px; display: flex; flex-direction: column; gap: 12px; }
+.sheet-h { display: flex; justify-content: space-between; align-items: center; font: 500 20px var(--font-display); }
+.sheet-h button { min-height: 44px; padding: 0 16px; border: 0; border-radius: 12px; background: var(--accent); color: var(--accent-ink); font: 600 16px var(--font-body); cursor: pointer; }
+
 .tcol { display: contents; }
 @media (min-width: 700px) {
   main { max-width: 1120px; }
-  main > h1, main > .tabs, main > #sharedCard, main > #panel-drone, main > #panel-rhythm { width: 100%; max-width: 520px; align-self: center; }
+  main > .topbar, main > .keybar, main > #panel-home, main > #panel-rhythm { width: 100%; max-width: 520px; align-self: center; }
   #panel-tuner { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 24px; align-items: start; }
   #panel-tuner:has(#scaleCard[hidden]):has(#tendCard[hidden]) { grid-template-columns: minmax(0, 520px); justify-content: center; }
   #panel-tuner .tcol { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
@@ -307,14 +321,29 @@ main { padding-bottom: 120px; }
 </head>
 <body>
 <main>
-  <h1>Orchestra Drone and Tuner</h1>
+  <header class="topbar">
+    <button id="backBtn" hidden aria-label="Back to Home">&lsaquo; Home</button>
+    <h1 id="pageTitle">Orchestra Tuner</h1>
+    <button id="setBtn" aria-label="Settings">Settings</button>
+  </header>
 
-  <div class="seg tabs" id="tabSeg" role="group" aria-label="Mode">
-    <button data-v="drone" aria-pressed="true">Drone</button>
-    <button data-v="tuner" aria-pressed="false">Tuner</button>
-    <button data-v="rhythm" aria-pressed="false">Rhythm</button>
+  <div class="keybar" id="keyBar">
+    <button class="kb-key" id="kbKey"><small>Key and scale</small><span id="kbKeyTxt">A major</span></button>
+    <button class="kb-tune" id="kbTune">Tune A</button>
+    <button class="kb-drone" id="kbDrone" aria-pressed="false">Start drone</button>
   </div>
 
+  <div class="panel" id="panel-home">
+    <button class="goal" data-g="check">Check a note<span>See if a note is sharp or flat</span></button>
+    <button class="goal" data-g="practice">Practice a scale<span>Play over the drone and hear when you are in tune</span></button>
+    <button class="goal" data-g="chords">Chords and intervals<span>Lock in the 5th, then find the 3rd</span></button>
+    <button class="goal" data-g="ear">Train my ear<span>Beats, and singing the scale</span></button>
+    <button class="goal" data-g="rhythm">Rhythm<span>Metronome and polyrhythms</span></button>
+    <p class="hint" id="buildTag3" style="text-align:center;opacity:.6"></p>
+  </div>
+
+  <div class="sheet" id="setSheet" hidden><div class="sheet-in">
+    <div class="sheet-h"><span>Settings</span><button data-close>Done</button></div>
   <section class="card" id="sharedCard">
     <div class="row">
       <label class="label" for="inst">My instrument</label>
@@ -331,6 +360,10 @@ main { padding-bottom: 120px; }
     </div>
   </section>
 
+  </div></div>
+
+  <div class="sheet" id="keySheet" hidden><div class="sheet-in">
+    <div class="sheet-h"><span>Key and drone</span><button data-close>Done</button></div>
   <div class="panel" id="panel-drone">
 
   <div class="readout">
@@ -358,6 +391,16 @@ main { padding-bottom: 120px; }
     <div class="row" id="stringsRow" hidden>
       <div class="label">Open strings</div>
       <div class="strings" id="strings" role="group" aria-label="Open strings"></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="row">
+      <div class="label">Scale</div>
+      <div class="seg" id="ksScale" role="group" aria-label="Scale">
+        <button data-v="major" aria-pressed="true">Major</button>
+        <button data-v="minor" aria-pressed="false">Minor</button>
+      </div>
     </div>
   </section>
 
@@ -422,13 +465,15 @@ main { padding-bottom: 120px; }
   </details>
 
   </div>
+  </div></div>
 
   <div class="panel" id="panel-tuner" hidden>
   <div class="tcol tcol-l">
   <section class="card">
     <div class="row">
-      <div class="label">Mode</div>
-      <div class="seg" id="modeSeg" role="group" aria-label="Tuner mode">
+      <div class="label">What do you want to do?</div>
+      <div class="pick" id="modePick"></div>
+      <div class="seg" id="modeSeg" hidden role="group" aria-label="Tuner mode">
         <button data-v="notes" aria-pressed="true">Notes</button>
         <button data-v="target" aria-pressed="false">Target</button>
         <button data-v="scale" aria-pressed="false">Scale</button>
@@ -443,6 +488,63 @@ main { padding-bottom: 120px; }
       </div>
       <p class="hint" id="modeHint"></p>
     </div>
+  </section>
+
+  <section class="card" id="sgCard" hidden>
+    <div class="label">Sing the scale</div>
+    <p class="hint">A soft root plays underneath. Each note lasts <span id="sgLen">4</span> seconds at 60 beats a minute, so you have time to match it.</p>
+    <div class="sg-pick">
+      <select id="sgRoot" aria-label="Root note"></select>
+      <div class="stepper">
+        <button id="sgOctDown" aria-label="Lower octave">&minus;</button>
+        <span id="sgOctVal">Octave 3</span>
+        <button id="sgOctUp" aria-label="Higher octave">+</button>
+      </div>
+    </div>
+    <div class="seg" id="sgScale" role="group" aria-label="Scale">
+      <button data-v="major" aria-pressed="true">Major</button>
+      <button data-v="minor" aria-pressed="false">Minor</button>
+    </div>
+    <div class="sgshow">
+      <div class="sgbig" id="sgBig">A</div>
+      <div class="sgdeg" id="sgDeg">Press Play, then sing along</div>
+      <div class="sgbeats" id="sgBeats"></div>
+    </div>
+    <div class="sgchips" id="sgChips"></div>
+    <button class="play" id="sgPlay" aria-pressed="false">Play the scale</button>
+    <details class="sgopt">
+      <summary>Options</summary>
+      <div class="row">
+        <div class="label">Tuning</div>
+        <div class="seg" id="sgTuning" role="group" aria-label="Tuning">
+          <button data-v="just" aria-pressed="true">Pure</button>
+          <button data-v="equal" aria-pressed="false">Piano</button>
+        </div>
+        <p class="hint">Pure notes sit exactly in tune with the root. Piano matches a piano keyboard.</p>
+      </div>
+      <div class="row">
+        <div class="label">Seconds per note</div>
+        <div class="stepper">
+          <button id="sgSecDown" aria-label="Shorter notes">&minus;</button>
+          <span id="sgSecVal">4</span>
+          <button id="sgSecUp" aria-label="Longer notes">+</button>
+        </div>
+      </div>
+      <div class="row">
+        <div class="label">Direction</div>
+        <div class="seg" id="sgDir" role="group" aria-label="Direction">
+          <button data-v="up" aria-pressed="true">Up</button>
+          <button data-v="both" aria-pressed="false">Up and down</button>
+        </div>
+      </div>
+      <div class="row">
+        <div class="label">Tick on each beat</div>
+        <div class="seg" id="sgTick" role="group" aria-label="Beat tick">
+          <button data-v="off" aria-pressed="true">Off</button>
+          <button data-v="on" aria-pressed="false">On</button>
+        </div>
+      </div>
+    </details>
   </section>
 
   <section class="card" id="trCard" hidden>
@@ -479,18 +581,18 @@ main { padding-bottom: 120px; }
   </section>
 
   <section class="card" id="tOpts" hidden>
-    <div class="row">
+    <div class="row" hidden>
       <label class="label" for="tKey">Key (root note)</label>
       <select id="tKey"></select>
     </div>
-    <div class="row">
+    <div class="row" hidden>
       <div class="label">Scale</div>
       <div class="seg" id="tScaleSeg" role="group" aria-label="Scale">
         <button data-v="major" aria-pressed="true">Major</button>
         <button data-v="minor" aria-pressed="false">Minor</button>
       </div>
     </div>
-    <div class="row" id="tOctRow">
+    <div class="row" id="tOctRow" hidden>
       <div class="label">Starting octave</div>
       <div class="stepper">
         <button id="tOctDown" aria-label="Octave down">&minus;</button>
@@ -638,7 +740,7 @@ main { padding-bottom: 120px; }
   </section>
   </div>
 
-  <p class="hint" id="buildTag" style="text-align:center;opacity:.6">Version: Nov 12a, Build the chord and Note's job</p>
+  <p class="hint" id="buildTag" style="text-align:center;opacity:.6">Version: Nov 12b, Home screen, goals, key bar</p>
   <p class="msg" id="msg">Tap Start, allow the microphone, then play one note at a time. The reading is in cents: 100 cents is one half step.</p>
 
   </div>
@@ -730,63 +832,6 @@ main { padding-bottom: 120px; }
     </div>
   </details>
 
-  <section class="card" id="sgCard">
-    <div class="label">Sing the scale</div>
-    <p class="hint">A soft root plays underneath. Each note lasts <span id="sgLen">4</span> seconds at 60 beats a minute, so you have time to match it.</p>
-    <div class="sg-pick">
-      <select id="sgRoot" aria-label="Root note"></select>
-      <div class="stepper">
-        <button id="sgOctDown" aria-label="Lower octave">&minus;</button>
-        <span id="sgOctVal">Octave 3</span>
-        <button id="sgOctUp" aria-label="Higher octave">+</button>
-      </div>
-    </div>
-    <div class="seg" id="sgScale" role="group" aria-label="Scale">
-      <button data-v="major" aria-pressed="true">Major</button>
-      <button data-v="minor" aria-pressed="false">Minor</button>
-    </div>
-    <div class="sgshow">
-      <div class="sgbig" id="sgBig">A</div>
-      <div class="sgdeg" id="sgDeg">Press Play, then sing along</div>
-      <div class="sgbeats" id="sgBeats"></div>
-    </div>
-    <div class="sgchips" id="sgChips"></div>
-    <button class="play" id="sgPlay" aria-pressed="false">Play the scale</button>
-    <details class="sgopt">
-      <summary>Options</summary>
-      <div class="row">
-        <div class="label">Tuning</div>
-        <div class="seg" id="sgTuning" role="group" aria-label="Tuning">
-          <button data-v="just" aria-pressed="true">Pure</button>
-          <button data-v="equal" aria-pressed="false">Piano</button>
-        </div>
-        <p class="hint">Pure notes sit exactly in tune with the root. Piano matches a piano keyboard.</p>
-      </div>
-      <div class="row">
-        <div class="label">Seconds per note</div>
-        <div class="stepper">
-          <button id="sgSecDown" aria-label="Shorter notes">&minus;</button>
-          <span id="sgSecVal">4</span>
-          <button id="sgSecUp" aria-label="Longer notes">+</button>
-        </div>
-      </div>
-      <div class="row">
-        <div class="label">Direction</div>
-        <div class="seg" id="sgDir" role="group" aria-label="Direction">
-          <button data-v="up" aria-pressed="true">Up</button>
-          <button data-v="both" aria-pressed="false">Up and down</button>
-        </div>
-      </div>
-      <div class="row">
-        <div class="label">Tick on each beat</div>
-        <div class="seg" id="sgTick" role="group" aria-label="Beat tick">
-          <button data-v="off" aria-pressed="true">Off</button>
-          <button data-v="on" aria-pressed="false">On</button>
-        </div>
-      </div>
-    </details>
-  </section>
-
   <p class="hint" id="buildTag2" style="text-align:center;opacity:.6"></p>
 
   <div class="dock">
@@ -795,11 +840,6 @@ main { padding-bottom: 120px; }
   </div>
   </div>
 </main>
-<div class="ddock" id="droneDock">
-  <div class="dd-name"><span id="ddName">A<sub>4</sub></span><small id="ddHz">440.00 Hz</small></div>
-  <button class="dd-tune" id="ddTune">Tune A</button>
-  <button class="dd-play" id="ddPlay" aria-pressed="false">Start drone</button>
-</div>
 
 <script>
 (function () {
@@ -842,14 +882,13 @@ main { padding-bottom: 120px; }
   var DEG = ['Root','2nd','3rd','4th','5th','6th','7th','Octave'];
 
   var s = { note: 9, octave: 4, a4: 440, vol: 0.6, wave: 'triangle', sound: 'note',
-            tuning: 'just', scale: 'major', probe: null, playing: false, inst: 'c', tab: 'drone' };
+            tuning: 'just', scale: 'major', probe: null, playing: false, inst: 'c', tab: 'home' };
 
   try {
     var saved = JSON.parse(localStorage.getItem('orchestra-drone') || '{}');
     if (saved.inst && instById[saved.inst]) s.inst = saved.inst;
     if (saved.a4 >= 410 && saved.a4 <= 450) s.a4 = saved.a4;
     if (saved.vol >= 0 && saved.vol <= 1) s.vol = saved.vol;
-    if (saved.tab === 'drone' || saved.tab === 'tuner' || saved.tab === 'rhythm') s.tab = saved.tab;
     if (['triangle','sine','sawtooth','oboe'].indexOf(saved.wave) >= 0) s.wave = saved.wave;
   } catch (e) {}
   function save() {
@@ -1035,10 +1074,10 @@ main { padding-bottom: 120px; }
     mark('tSoundSeg', s.sound);
     $('tDroneBtn').setAttribute('aria-pressed', s.playing ? 'true' : 'false');
     $('tDroneBtn').textContent = s.playing ? 'Stop drone' : 'Start drone';
-    $('ddName').innerHTML = $('noteName').innerHTML;
-    $('ddHz').textContent = $('hz').textContent;
-    $('ddPlay').setAttribute('aria-pressed', s.playing ? 'true' : 'false');
-    $('ddPlay').textContent = s.playing ? 'Stop drone' : 'Start drone';
+    $('kbKeyTxt').textContent = rootSpell(s.note, s.scale === 'minor') + ' ' + s.scale;
+    $('kbDrone').setAttribute('aria-pressed', s.playing ? 'true' : 'false');
+    $('kbDrone').textContent = s.playing ? 'Stop drone' : 'Start drone';
+    mark('ksScale', s.scale);
     $('tPhones').hidden = !s.playing;
     $('tVol').value = Math.round(s.vol * 100);
     $('tVolOut').textContent = Math.round(s.vol * 100) + '%';
@@ -1117,6 +1156,7 @@ main { padding-bottom: 120px; }
   seg('soundSeg', function (v) { s.sound = v; });
   seg('tuningSeg', function (v) { s.tuning = v; });
   seg('scaleSeg', function (v) { s.scale = v; });
+  seg('ksScale', function (v) { s.scale = v; });
   seg('waveSeg', function (v) { s.wave = v; });
   seg('refSeg', function (v) { s.a4 = +v; });
 
@@ -1177,7 +1217,34 @@ main { padding-bottom: 120px; }
 
   // ---------- modes: notes, target, scale, my notes ----------
   var tMode = 'notes', tDeg = 0, seg = null, scaleRep = {}, dropped = {}, repKey = '', tend = {}, tendInst = '';
+  var GOALS = {
+    check: { t: 'Check a note', def: 'notes', modes: [
+      ['notes', 'Notes', 'Nearest note and cents'],
+      ['target', 'Target', 'Tune a scale note to its pure pitch'],
+      ['mine', 'My tendencies', 'Which notes you play sharp or flat']] },
+    practice: { t: 'Practice a scale', def: 'follow', modes: [
+      ['follow', 'Follow', 'The drone follows the note you play'],
+      ['free', 'Free', 'Only the root plays, clicks when in tune'],
+      ['climb', 'Climb', 'Hold each note in tune to move up'],
+      ['scale', 'Scale report', 'Record a scale, then see how you did']] },
+    chords: { t: 'Chords and intervals', def: 'build', modes: [
+      ['build', 'Build the chord', 'Hear root, 5th and 3rd lock in'],
+      ['jobs', "Each note's job", 'Root, 5th or 3rd through a progression'],
+      ['triad', 'Record a triad', 'Hear yours, then the pure one']] },
+    ear: { t: 'Train my ear', def: 'beats', modes: [
+      ['beats', 'Beat trainer', 'Slide until the wobble disappears'],
+      ['sing', 'Sing the scale', 'A slow scale over a soft root']] }
+  };
+  var goal = 'check', lastMode = {};
+  function renderPick() {
+    var g = GOALS[goal];
+    $('modePick').innerHTML = g.modes.map(function (m) {
+      return '<button data-v="' + m[0] + '" aria-pressed="' + (m[0] === tMode) + '"><b>' + m[1] + '</b><span>' + m[2] + '</span></button>';
+    }).join('');
+    lastMode[goal] = tMode;
+  }
   var HINTS = {
+    sing:   'A soft root plays underneath. Sing or play each note as it comes. Each note lasts a few seconds so you have time to match it.',
     notes:  'Shows the nearest note and how many cents sharp or flat you are against piano pitch.',
     target: 'Pick the note you are playing. The meter shows how far you are from its pure (just) pitch over the key.',
     scale:  'Play one note at a time and hold each for at least 2 seconds in total. Breaths and restarts are fine. It moves on when you play the next note.',
@@ -1799,17 +1866,19 @@ main { padding-bottom: 120px; }
 
   function tModeUI() {
     segEnd();
-    $('tOpts').hidden = !(tMode === 'target' || tMode === 'free' || tMode === 'follow' || tMode === 'triad' || tMode === 'build' || tMode === 'jobs' || guided() || tMode === 'beats');
+    $('tOpts').hidden = !(tMode === 'target' || tMode === 'free' || guided());
     $('tDegRow').hidden = tMode !== 'target';
     $('scaleCard').hidden = tMode !== 'scale';
     $('tendCard').hidden = tMode !== 'mine';
     $('triadCard').hidden = tMode !== 'triad';
-    $('tOctRow').hidden = tMode === 'triad';
     $('tDroneCard').hidden = !(tMode === 'target' || tMode === 'scale');
     $('trCard').hidden = tMode !== 'beats';
     $('buildCard').hidden = tMode !== 'build';
     $('jobsCard').hidden = tMode !== 'jobs';
-    var noMic = tMode === 'beats' || tMode === 'build' || tMode === 'jobs';
+    $('sgCard').hidden = tMode !== 'sing';
+    if (tMode === 'sing' && lastTM !== 'sing' && typeof sg === 'object') { sg.note = s.note; sg.scale = s.scale; sgUI(); }
+    if (tMode !== 'sing' && typeof sg === 'object' && sg.running) sgStop();
+    var noMic = tMode === 'beats' || tMode === 'build' || tMode === 'jobs' || tMode === 'sing';
     $('meter').hidden = $('go').hidden = $('msg').hidden = noMic;
     if (noMic && listening) tStop();
     if (tMode !== 'beats') trStop();
@@ -1826,6 +1895,7 @@ main { padding-bottom: 120px; }
     if (!guided()) cinStop();
     $('modeHint').textContent = HINTS[tMode];
     mark('modeSeg', tMode);
+    renderPick();
     tRenderOpts();
     if (guided()) guideStart();
     if (tMode === 'triad') triadStart();
@@ -2046,6 +2116,10 @@ main { padding-bottom: 120px; }
   $('tScaleSeg').addEventListener('click', function (e) {
     var b = e.target.closest('button');
     if (b) { s.scale = b.dataset.v; render(); apply(); }
+  });
+  $('modePick').addEventListener('click', function (e) {
+    var b = e.target.closest('button');
+    if (b) { tMode = b.dataset.v; tModeUI(); }
   });
   $('modeSeg').addEventListener('click', function (e) {
     var b = e.target.closest('button');
@@ -3204,22 +3278,38 @@ main { padding-bottom: 120px; }
 
 
   function showTab() {
-    $('panel-drone').hidden = s.tab !== 'drone';
+    $('panel-home').hidden = s.tab !== 'home';
     $('panel-tuner').hidden = s.tab !== 'tuner';
     $('panel-rhythm').hidden = s.tab !== 'rhythm';
-    $('sharedCard').hidden = s.tab === 'rhythm';
-    $('droneDock').hidden = s.tab === 'rhythm';
-    mark('tabSeg', s.tab);
+    $('backBtn').hidden = s.tab === 'home';
+    $('pageTitle').textContent = s.tab === 'tuner' ? GOALS[goal].t : s.tab === 'rhythm' ? 'Rhythm' : 'Orchestra Tuner';
+    $('buildTag3').textContent = $('buildTag').textContent;
   }
-  $('ddPlay').addEventListener('click', function () { setPlaying(!s.playing); render(); });
-  $('ddTune').addEventListener('click', function () { $('tuneA').click(); });
-  $('tabSeg').addEventListener('click', function (e) {
-    var b = e.target.closest('button');
+  function leavePage() {
+    rStop(); sgStop(); trStop(); hearStop(); jobsOff(); buildLeave();
+    if (listening) tStop();
+  }
+  function openSheet(id) { $(id).hidden = false; }
+  function closeSheets() { $('keySheet').hidden = true; $('setSheet').hidden = true; }
+  ['keySheet', 'setSheet'].forEach(function (id) {
+    $(id).addEventListener('click', function (e) {
+      if (e.target === $(id) || e.target.closest('[data-close]')) closeSheets();
+    });
+  });
+  $('kbKey').addEventListener('click', function () { openSheet('keySheet'); });
+  $('setBtn').addEventListener('click', function () { openSheet('setSheet'); });
+  $('kbDrone').addEventListener('click', function () { setPlaying(!s.playing); render(); });
+  $('kbTune').addEventListener('click', function () { $('tuneA').click(); });
+  $('backBtn').addEventListener('click', function () {
+    leavePage(); s.tab = 'home'; showTab(); window.scrollTo(0, 0);
+  });
+  $('panel-home').addEventListener('click', function (e) {
+    var b = e.target.closest('.goal');
     if (!b) return;
-    if (b.dataset.v !== 'rhythm') { rStop(); sgStop(); }
-    if (b.dataset.v !== 'tuner') { trStop(); hearStop(); jobsOff(); }
-    if (listening && b.dataset.v !== 'tuner') tStop();
-    s.tab = b.dataset.v; showTab(); save();
+    leavePage();
+    if (b.dataset.g === 'rhythm') { s.tab = 'rhythm'; showTab(); window.scrollTo(0, 0); return; }
+    goal = b.dataset.g; tMode = lastMode[goal] || GOALS[goal].def; s.tab = 'tuner';
+    showTab(); tModeUI(); window.scrollTo(0, 0);
   });
   tIdle();
   showTab();

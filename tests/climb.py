@@ -12,7 +12,7 @@ with sync_playwright() as p:
     b=p.chromium.launch(executable_path='/usr/bin/google-chrome',headless=True,args=['--no-sandbox','--autoplay-policy=no-user-gesture-required'])
     pg=b.new_page(); errs=[]; pg.on('pageerror',lambda e:errs.append(str(e))); pg.add_init_script(init)
     pg.goto('file://'+TEST+'')
-    pg.click('#tabSeg button[data-v=tuner]'); pg.click('#modeSeg button[data-v=climb]'); pg.click('#go'); pg.wait_for_timeout(4600)
+    pg.click('.goal[data-g=practice]'); pg.click('#modePick button[data-v=climb]'); pg.click('#go'); pg.wait_for_timeout(4600)
     f=pg.evaluate('__t.base()'); base=pg.evaluate('__o')
     run="([f,c,n,t0])=>{let t=t0;for(let k=0;k<n;k++){__t.feed(f*Math.pow(2,c/1200),t);t+=33}}"
     pg.evaluate(run,[f,8,60,1000]);print('8c off 2s: hold',pg.evaluate('__t.hold()'),'pings',pg.evaluate('__o')-base)
